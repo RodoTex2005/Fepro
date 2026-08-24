@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'saved_recipes_screen.dart';
 import 'frames_screen.dart';
+
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -312,8 +314,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             foregroundColor: Colors.red,
                           ),
                           child: const Text('Salir'),
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(context, '/');
+                          onPressed: () async {
+                            await FirebaseAuth.instance.signOut();
+
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                            }
                           },
                         ),
                       ],

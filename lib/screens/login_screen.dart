@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,25 +41,124 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  void _login() async {
-    setState(() {
-      _isLoading = true;
-    });
+  Future<void> _login() async {
+  final usuario = usuarioController.text.trim();
+  final password = passwordController.text;
 
-    await Future.delayed(const Duration(seconds: 1));
+  if (usuario.isEmpty || password.isEmpty) {
+    _mostrarMensaje('Completa todos los campos.');
+    return;
+  }
+
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    print('Intentando iniciar sesión...');
+    print('Usuario: $usuario');
+
+    // Buscar el usuario en la colección usuarios_login
+    final documento = await FirebaseFirestore.instance
+        .collection('usuarios_login')
+        .doc(usuario.toLowerCase())
+        .get();
+
+    if (!documento.exists) {
+      print('USUARIO NO ENCONTRADO');
+
+      if (mounted) {
+        _mostrarMensaje('El usuario no existe.');
+      }
+
+      return;
+    }
+
+    // Obtener los datos del usuario
+    final datosUsuario = documento.data()!;
+    final correo = datosUsuario['correo'] as String;
+
+    print('Usuario encontrado.');
+    print('Correo asociado: $correo');
+
+    // Iniciar sesión con Firebase Authentication
+    await FirebaseAuth.instance.signInWithEmailAndPassword(
+      email: correo,
+      password: password,
+    );
+
+    print('LOGIN CORRECTO');
 
     if (!mounted) return;
 
-    setState(() {
-      _isLoading = false;
-    });
+    _mostrarMensaje('¡Bienvenido a Recetias!');
 
+    // Ir al Home
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      MaterialPageRoute(
+        builder: (_) => const HomeScreen(),
+      ),
     );
-  }
+  } on FirebaseAuthException catch (e) {
+    print('ERROR DE FIREBASE AUTH: ${e.code}');
+    print('MENSAJE: ${e.message}');
 
+    String mensaje;
+
+    switch (e.code) {
+      case 'wrong-password':
+      case 'invalid-credential':
+        mensaje = 'Usuario o contraseña incorrectos.';
+        break;
+
+      case 'user-not-found':
+        mensaje = 'El usuario no existe.';
+        break;
+
+      case 'invalid-email':
+        mensaje = 'El correo electrónico no es válido.';
+        break;
+
+      case 'user-disabled':
+        mensaje = 'Esta cuenta ha sido deshabilitada.';
+        break;
+
+      case 'too-many-requests':
+        mensaje =
+            'Demasiados intentos. Intenta nuevamente más tarde.';
+        break;
+
+      default:
+        mensaje = 'No se pudo iniciar sesión.';
+    }
+
+    if (mounted) {
+      _mostrarMensaje(mensaje);
+    }
+  } catch (e) {
+    print('ERROR GENERAL: $e');
+
+    if (mounted) {
+      _mostrarMensaje('Ocurrió un error al iniciar sesión.');
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+}
+
+void _mostrarMensaje(String mensaje) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(mensaje),
+      backgroundColor: const Color(0xFF2ECC71),
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(

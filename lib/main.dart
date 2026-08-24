@@ -3,6 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,7 +34,37 @@ class RecetiasApp extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFFFF8F0),
       ),
-      home: const LoginScreen(),
+      home: const AuthGate(),
+    );
+  }
+}
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Mientras Firebase verifica la sesión
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF2ECC71),
+              ),
+            ),
+          );
+        }
+
+        // Hay una sesión activa
+        if (snapshot.hasData) {
+          return const HomeScreen();
+        }
+
+        // No hay sesión
+        return const LoginScreen();
+      },
     );
   }
 }
