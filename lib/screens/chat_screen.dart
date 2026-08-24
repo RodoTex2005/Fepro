@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'step_by_step_screen.dart'; // <-- NUEVO IMPORT
+import '../services/deepseek_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -9,7 +10,33 @@ class ChatScreen extends StatefulWidget {
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
+final DeepSeekService _deepSeekService = DeepSeekService();
 
+final List<Map<String, String>> _conversation = [
+  {
+    'role': 'system',
+    'content': '''
+Eres Amelia, la asistente de cocina de Recetias.
+
+Eres empática, amable, cercana, paciente, creativa y motivadora.
+
+Tu objetivo es ayudar al usuario a cocinar y disfrutar el proceso.
+
+Habla de forma natural y cálida, como una amiga que sabe cocinar.
+
+Si el usuario tiene pocos ingredientes, busca alternativas
+realistas utilizando lo que tenga disponible.
+
+Nunca juzgues al usuario por sus conocimientos de cocina.
+
+Si solicita una receta, proporciona una receta clara y útil.
+
+Si solamente quiere conversar, conversa naturalmente.
+
+Responde siempre en español.
+'''
+  },
+];
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<Map<String, dynamic>> messages = [];
@@ -34,52 +61,60 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _sendMessage() {
-    final text = _controller.text.trim();
-    if (text.isEmpty) return;
+  Future<void> _sendMessage() async {
+  final text = _controller.text.trim();
+
+  if (text.isEmpty) return;
+
+  setState(() {
+    messages.add({
+      'text': text,
+      'isUser': true,
+      'time': _getCurrentTime(),
+    });
+  });
+
+  _controller.clear();
+
+  _conversation.add({
+    'role': 'user',
+    'content': text,
+  });
+
+  try {
+    final response = await _deepSeekService.sendMessage(
+      messages: _conversation,
+    );
+
+    _conversation.add({
+      'role': 'assistant',
+      'content': response,
+    });
+
+    if (!mounted) return;
 
     setState(() {
-      messages.add({'text': text, 'isUser': true, 'time': _getCurrentTime()});
-    });
-
-    _controller.clear();
-
-    Future.delayed(const Duration(milliseconds: 500), () {
-      final response = _getAIResponse(text);
-      setState(() {
-        messages.add({
-          'text': response,
-          'isUser': false,
-          'time': _getCurrentTime(),
-        });
+      messages.add({
+        'text': response,
+        'isUser': false,
+        'time': _getCurrentTime(),
       });
-
-      if (_isRecipeRequest(text)) {
-        _currentRecipe = {
-          'name': '🍳 Jamón con Huevo',
-          'ingredients': [
-            '2 huevos',
-            '50g de jamón',
-            'Sal al gusto',
-            'Pimienta al gusto',
-            'Aceite para cocinar',
-          ],
-          'instructions':
-              '1. Corta el jamón en trozos pequeños.\n'
-              '2. Calienta una sartén con un poco de aceite a fuego medio.\n'
-              '3. Agrega el jamón y sofríe por 2 minutos.\n'
-              '4. Bate los huevos en un tazón con sal y pimienta.\n'
-              '5. Vierte los huevos batidos sobre el jamón.\n'
-              '6. Cocina revolviendo suavemente hasta que los huevos estén listos.\n'
-              '7. ¡Sirve caliente y disfruta! 🍳',
-        };
-
-        Future.delayed(const Duration(milliseconds: 300), () {
-          _showRecipeInChat();
-        });
-      }
     });
+  } catch (e) {
+    if (!mounted) return;
+
+    setState(() {
+      messages.add({
+        'text':
+            '😔 Uy, parece que tuve un problema al conectarme. Inténtalo nuevamente.',
+        'isUser': false,
+        'time': _getCurrentTime(),
+      });
+    });
+
+    debugPrint('Error DeepSeek: $e');
   }
+}
 
   void _showRecipeInChat() {
     if (_currentRecipe == null) return;
