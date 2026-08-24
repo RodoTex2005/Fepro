@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -190,22 +191,24 @@ class _LoginScreenState extends State<LoginScreen>
                     const SizedBox(height: 16),
 
                     TextButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('📝 Registro (sin funcionalidad)'),
-                            backgroundColor: Color(0xFF2ECC71),
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const RegisterScreen(),
+                                    ),
+                                  );
+                                },
+                          child: const Text(
+                            '¿No tienes cuenta? Regístrate',
+                            style: TextStyle(
+                              color: Color(0xFF2ECC71),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        );
-                      },
-                      child: const Text(
-                        '¿No tienes cuenta? Regístrate',
-                        style: TextStyle(
-                          color: Color(0xFF2ECC71),
-                          fontWeight: FontWeight.w500,
                         ),
-                      ),
-                    ),
                   ],
                 ),
               ),

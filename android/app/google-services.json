@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "187179912587",
+    "project_id": "recetias-prueba-flutter",
+    "storage_bucket": "recetias-prueba-flutter.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:187179912587:android:9d7fa760c993121c90b38e",
+        "android_client_info": {
+          "package_name": "com.example.prueba_1_base_de_datos_inicial"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "187179912587-heu5al5e22lrlbp0v4q9fu59gg0os2qq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_0HEDFbjf2ehbWRXTlWuBo8jek76RPuI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "187179912587-heu5al5e22lrlbp0v4q9fu59gg0os2qq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "187179912587-t9bochukj5j1t4s09d85luirev5u5ptv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.prueba1BaseDeDatosInicial"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:187179912587:android:5ddd227c482c70ea90b38e",
+        "android_client_info": {
+          "package_name": "com.example.recetias2_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "187179912587-heu5al5e22lrlbp0v4q9fu59gg0os2qq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_0HEDFbjf2ehbWRXTlWuBo8jek76RPuI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "187179912587-heu5al5e22lrlbp0v4q9fu59gg0os2qq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "187179912587-t9bochukj5j1t4s09d85luirev5u5ptv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.prueba1BaseDeDatosInicial"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
