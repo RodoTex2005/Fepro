@@ -1,8 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'step_by_step_screen.dart'; // <-- NUEVO IMPORT
-import '../services/deepseek_service.dart';
+
+import 'step_by_step_screen.dart';
+import '/services/deepseek_service.dart';
+import '/models/recipe_model.dart';
+
+import '/prompts/amelia_prompt.dart';
+import '/prompts/engine_prompt.dart';
+import '/prompts/recipe_prompt.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -10,37 +16,25 @@ class ChatScreen extends StatefulWidget {
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
-final DeepSeekService _deepSeekService = DeepSeekService();
 
-final List<Map<String, String>> _conversation = [
-  {
-    'role': 'system',
-    'content': '''
-Eres Amelia, la asistente de cocina de Recetias.
-
-Eres empática, amable, cercana, paciente, creativa y motivadora.
-
-Tu objetivo es ayudar al usuario a cocinar y disfrutar el proceso.
-
-Habla de forma natural y cálida, como una amiga que sabe cocinar.
-
-Si el usuario tiene pocos ingredientes, busca alternativas
-realistas utilizando lo que tenga disponible.
-
-Nunca juzgues al usuario por sus conocimientos de cocina.
-
-Si solicita una receta, proporciona una receta clara y útil.
-
-Si solamente quiere conversar, conversa naturalmente.
-
-Responde siempre en español.
-'''
-  },
-];
 class _ChatScreenState extends State<ChatScreen> {
+  // ============================================================
+  // SERVICIO DE DEEPSEEK
+  // ============================================================
+
+  final DeepSeekService _deepSeekService = DeepSeekService();
+
+  // ============================================================
+  // VARIABLES DEL CHAT
+  // ============================================================
+
   final TextEditingController _controller = TextEditingController();
   final List<Map<String, dynamic>> messages = [];
-  Map<String, dynamic>? _currentRecipe;
+  bool _isLoading = false;
+
+  // ============================================================
+  // INICIO
+  // ============================================================
 
   @override
   void initState() {
@@ -49,6 +43,16 @@ class _ChatScreenState extends State<ChatScreen> {
       _addWelcomeMessage();
     });
   }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  // ============================================================
+  // MENSAJE DE BIENVENIDA
+  // ============================================================
 
   void _addWelcomeMessage() {
     setState(() {
@@ -61,140 +65,146 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  // ============================================================
+  // ENVIAR MENSAJE A DEEPSEEK
+  // ============================================================
+
   Future<void> _sendMessage() async {
-  final text = _controller.text.trim();
+    final text = _controller.text.trim();
 
-  if (text.isEmpty) return;
-
-  setState(() {
-    messages.add({
-      'text': text,
-      'isUser': true,
-      'time': _getCurrentTime(),
-    });
-  });
-
-  _controller.clear();
-
-  _conversation.add({
-    'role': 'user',
-    'content': text,
-  });
-
-  try {
-    final response = await _deepSeekService.sendMessage(
-      messages: _conversation,
-    );
-
-    _conversation.add({
-      'role': 'assistant',
-      'content': response,
-    });
-
-    if (!mounted) return;
+    if (text.isEmpty || _isLoading) return;
 
     setState(() {
       messages.add({
-        'text': response,
-        'isUser': false,
+        'text': text,
+        'isUser': true,
         'time': _getCurrentTime(),
       });
+      _isLoading = true;
     });
-  } catch (e) {
-    if (!mounted) return;
 
-    setState(() {
-      messages.add({
-        'text':
-            '😔 Uy, parece que tuve un problema al conectarme. Inténtalo nuevamente.',
-        'isUser': false,
-        'time': _getCurrentTime(),
+    _controller.clear();
+
+    try {
+      final response = await _deepSeekService.sendMessage(
+        messages: [
+          {'role': 'system', 'content': ameliaPrompt},
+          {'role': 'system', 'content': enginePrompt},
+          {'role': 'system', 'content': recipePrompt},
+          {'role': 'user', 'content': text},
+        ],
+      );
+
+      final cleanResponse = response
+          .replaceAll('```json', '')
+          .replaceAll('```', '')
+          .trim();
+
+      dynamic data;
+      try {
+        data = jsonDecode(cleanResponse);
+      } catch (_) {
+        data = null;
+      }
+
+      if (data is Map<String, dynamic> && data['type'] == 'recipe') {
+        final recipe = {
+          'name': data['name'] ?? 'Receta de Amelia',
+          'description': data['description'] ?? '',
+          'servings': data['servings'],
+          'time': data['time'] ?? '',
+          'difficulty': data['difficulty'] ?? '',
+          'ingredients': List<String>.from(data['ingredients'] ?? []),
+          'optionalIngredients':
+              List<String>.from(data['optionalIngredients'] ?? []),
+          'preparation': List<String>.from(data['preparation'] ?? []),
+          'advice': data['advice'] ?? '',
+          'finalMessage': data['finalMessage'] ?? '',
+        };
+
+        setState(() {
+          messages.add({
+            'text': data['finalMessage'] ?? '¡Aquí tienes tu receta! 👩‍🍳',
+            'isUser': false,
+            'time': _getCurrentTime(),
+          });
+
+          messages.add({
+            'text': '',
+            'isUser': false,
+            'isRecipe': true,
+            'time': _getCurrentTime(),
+            'recipeData': recipe,
+          });
+        });
+      } else {
+        setState(() {
+          messages.add({
+            'text': response,
+            'isUser': false,
+            'time': _getCurrentTime(),
+          });
+        });
+      }
+    } catch (e) {
+      debugPrint('Error al procesar respuesta: $e');
+
+      setState(() {
+        messages.add({
+          'text':
+              'Lo siento, tuve un pequeño problema al preparar la respuesta. 😅 ¿Podemos intentarlo de nuevo?',
+          'isUser': false,
+          'time': _getCurrentTime(),
+        });
       });
-    });
-
-    debugPrint('Error DeepSeek: $e');
-  }
-}
-
-  void _showRecipeInChat() {
-    if (_currentRecipe == null) return;
-
-    final recipe = _currentRecipe!;
-    final String recipeText =
-        '''
-🍳 **${recipe['name']}**
-
-🥘 **Ingredientes:**
-${(recipe['ingredients'] as List).map((e) => '• $e').join('\n')}
-
-👩‍🍳 **Instrucciones:**
-${recipe['instructions']}
-    ''';
-
-    setState(() {
-      messages.add({
-        'text': recipeText,
-        'isUser': false,
-        'isRecipe': true,
-        'time': _getCurrentTime(),
-        'recipeData': recipe,
-      });
-    });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
-  String _getAIResponse(String userText) {
-    final lowerText = userText.toLowerCase();
-
-    if (lowerText.contains('jamón') && lowerText.contains('huevo')) {
-      return '🍳 ¡Excelente elección! Aquí tienes la receta completa de Jamón con Huevo:';
-    }
-
-    if (lowerText.contains('jamón') || lowerText.contains('huevo')) {
-      return '🥚 ¿Jamón y huevo? ¡Perfecto! Aquí tienes la receta completa:';
-    }
-
-    if (lowerText.contains('hola') ||
-        lowerText.contains('buenas') ||
-        lowerText.contains('hey')) {
-      return '¡Hola! 👋 ¿Qué te gustaría cocinar hoy? Dime "jamón y huevo" para una receta fácil.';
-    }
-
-    if (lowerText.contains('ayuda') || lowerText.contains('cómo')) {
-      return '😊 Claro, ¡estoy aquí para ayudarte! Puedes decirme qué ingredientes tienes y te daré una receta. Por ejemplo: "jamón y huevo"';
-    }
-
-    return '🤔 ¡Interesante! ¿Quieres que te ayude a preparar algo con esos ingredientes? Dime "jamón y huevo" para una receta fácil.';
-  }
-
-  bool _isRecipeRequest(String text) {
-    final lowerText = text.toLowerCase();
-    return lowerText.contains('jamón') || lowerText.contains('huevo');
-  }
+  // ============================================================
+  // MODO COCINAR
+  // ============================================================
 
   void _goToCookingMode(Map<String, dynamic> recipe) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => StepByStepScreen(
-          recipeName: recipe['name'],
-          ingredients: List<String>.from(recipe['ingredients']),
-          instructions: recipe['instructions'],
-        ),
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => StepByStepScreen(
+        recipeName: recipe['name'] ?? 'Receta',
+        ingredients: List<String>.from(recipe['ingredients'] ?? []),
+        instructions: List<String>.from(recipe['preparation'] ?? []).join('\n'),
       ),
-    );
-  }
+    ),
+  );
+}
+
+  // ============================================================
+  // GUARDAR RECETA
+  // ============================================================
 
   Future<void> _saveRecipe(Map<String, dynamic> recipe) async {
     final prefs = await SharedPreferences.getInstance();
     final String? recipesJson = prefs.getString('saved_recipes');
+
     List<Map<String, dynamic>> savedRecipes = [];
 
     if (recipesJson != null) {
-      savedRecipes = List<Map<String, dynamic>>.from(json.decode(recipesJson));
+      savedRecipes = List<Map<String, dynamic>>.from(
+        json.decode(recipesJson),
+      );
     }
 
-    final exists = savedRecipes.any((r) => r['name'] == recipe['name']);
+    final exists = savedRecipes.any(
+      (r) => r['name'] == recipe['name'],
+    );
+
     if (exists) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('⚠️ Esta receta ya está en favoritos'),
@@ -207,11 +217,15 @@ ${recipe['instructions']}
     savedRecipes.add({
       'name': recipe['name'],
       'ingredients': recipe['ingredients'],
-      'instructions': recipe['instructions'],
+      'instructions': recipe['preparation'],
     });
 
-    await prefs.setString('saved_recipes', json.encode(savedRecipes));
+    await prefs.setString(
+      'saved_recipes',
+      json.encode(savedRecipes),
+    );
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('❤️ Receta guardada en favoritos'),
@@ -220,10 +234,18 @@ ${recipe['instructions']}
     );
   }
 
+  // ============================================================
+  // HORA ACTUAL
+  // ============================================================
+
   String _getCurrentTime() {
     final now = DateTime.now();
     return '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
   }
+
+  // ============================================================
+  // CÁMARA Y GALERÍA
+  // ============================================================
 
   void _openCamera() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -245,6 +267,10 @@ ${recipe['instructions']}
     );
   }
 
+  // ============================================================
+  // INTERFAZ
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -254,13 +280,22 @@ ${recipe['instructions']}
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: messages.length + 1,
+              itemCount: messages.length + (_isLoading ? 2 : 1),
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return const SizedBox(height: 40);
                 }
 
+                if (_isLoading && index == messages.length + 1) {
+                  return const _TypingBubble();
+                }
+
                 final msgIndex = index - 1;
+
+                if (msgIndex >= messages.length) {
+                  return const SizedBox.shrink();
+                }
+
                 final msg = messages[msgIndex];
                 final isRecipe = msg['isRecipe'] ?? false;
 
@@ -281,7 +316,6 @@ ${recipe['instructions']}
               },
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -301,17 +335,19 @@ ${recipe['instructions']}
                     ),
                     child: TextField(
                       controller: _controller,
+                      enabled: !_isLoading,
                       decoration: const InputDecoration(
                         hintText: 'Escribe un mensaje...',
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 20),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                        ),
                       ),
                       onSubmitted: (_) => _sendMessage(),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-
                 Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFF2ECC71).withOpacity(0.2),
@@ -322,25 +358,26 @@ ${recipe['instructions']}
                       Icons.camera_alt,
                       color: Color(0xFF2ECC71),
                     ),
-                    onPressed: _openCamera,
+                    onPressed: _isLoading ? null : _openCamera,
                     iconSize: 24,
                   ),
                 ),
                 const SizedBox(width: 4),
-
                 Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFF2ECC71).withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.photo, color: Color(0xFF2ECC71)),
-                    onPressed: _openGallery,
+                    icon: const Icon(
+                      Icons.photo,
+                      color: Color(0xFF2ECC71),
+                    ),
+                    onPressed: _isLoading ? null : _openGallery,
                     iconSize: 24,
                   ),
                 ),
                 const SizedBox(width: 4),
-
                 Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFF2ECC71),
@@ -353,8 +390,11 @@ ${recipe['instructions']}
                     ],
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendMessage,
+                    icon: Icon(
+                      _isLoading ? Icons.hourglass_top : Icons.send,
+                      color: Colors.white,
+                    ),
+                    onPressed: _isLoading ? null : _sendMessage,
                     iconSize: 24,
                   ),
                 ),
@@ -367,7 +407,10 @@ ${recipe['instructions']}
   }
 }
 
-// ===== BURBUJA DE CHAT NORMAL =====
+// ================================================================
+// BURBUJA NORMAL DEL CHAT
+// ================================================================
+
 class _ChatBubble extends StatelessWidget {
   final String message;
   final bool isUser;
@@ -384,9 +427,8 @@ class _ChatBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment: isUser
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (!isUser)
             CircleAvatar(
@@ -409,8 +451,10 @@ class _ChatBubble extends StatelessWidget {
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
-                  bottomLeft: isUser ? const Radius.circular(16) : Radius.zero,
-                  bottomRight: isUser ? Radius.zero : const Radius.circular(16),
+                  bottomLeft:
+                      isUser ? const Radius.circular(16) : Radius.zero,
+                  bottomRight:
+                      isUser ? Radius.zero : const Radius.circular(16),
                 ),
                 boxShadow: const [
                   BoxShadow(
@@ -423,11 +467,14 @@ class _ChatBubble extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    message,
-                    style: TextStyle(
-                      color: isUser ? Colors.white : Colors.black87,
-                      fontSize: 15,
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      message,
+                      style: TextStyle(
+                        color: isUser ? Colors.white : Colors.black87,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -447,7 +494,11 @@ class _ChatBubble extends StatelessWidget {
             const CircleAvatar(
               backgroundColor: Color(0xFFFDFBF7),
               radius: 16,
-              child: Icon(Icons.person, size: 16, color: Color(0xFF2ECC71)),
+              child: Icon(
+                Icons.person,
+                size: 16,
+                color: Color(0xFF2ECC71),
+              ),
             ),
         ],
       ),
@@ -455,7 +506,69 @@ class _ChatBubble extends StatelessWidget {
   }
 }
 
-// ===== BURBUJA DE RECETA =====
+// ================================================================
+// INDICADOR "AMELIA ESTÁ ESCRIBIENDO"
+// ================================================================
+
+class _TypingBubble extends StatelessWidget {
+  const _TypingBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: 40,
+        bottom: 12,
+      ),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 10,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF2ECC71),
+                ),
+              ),
+              SizedBox(width: 10),
+              Text(
+                'Amelia está pensando...',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ================================================================
+// BURBUJA DE RECETA
+// ================================================================
+
 class _RecipeBubble extends StatelessWidget {
   final Map<String, dynamic> recipeData;
   final VoidCallback onCook;
@@ -471,13 +584,22 @@ class _RecipeBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ingredients = List<String>.from(recipeData['ingredients']);
-    final instructions = recipeData['instructions'];
+    final ingredients = List<String>.from(recipeData['ingredients'] ?? []);
+    final optionalIngredients =
+        List<String>.from(recipeData['optionalIngredients'] ?? []);
+    final preparation = List<String>.from(recipeData['preparation'] ?? []);
+
+    final name = recipeData['name'] ?? 'Receta';
+    final description = recipeData['description'] ?? '';
+    final servings = recipeData['servings'];
+    final recipeTime = recipeData['time'] ?? '';
+    final difficulty = recipeData['difficulty'] ?? '';
+    final advice = recipeData['advice'] ?? '';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 16,
@@ -504,30 +626,70 @@ class _RecipeBubble extends StatelessWidget {
                     offset: Offset(0, 2),
                   ),
                 ],
-                border: Border.all(color: const Color(0xFF2ECC71), width: 2),
+                border: Border.all(
+                  color: const Color(0xFF2ECC71),
+                  width: 2,
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    recipeData['name'],
+                    '🍽️ $name',
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF27AE60),
                     ),
                   ),
                   const SizedBox(height: 8),
-
-                  const Text(
-                    '🥘 Ingredientes:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  if (description.isNotEmpty) ...[
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.4,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (servings != null)
+                        _InfoChip(
+                          icon: Icons.people,
+                          text: '$servings porción(es)',
+                        ),
+                      if (recipeTime.toString().isNotEmpty)
+                        _InfoChip(
+                          icon: Icons.timer,
+                          text: recipeTime,
+                        ),
+                      if (difficulty.toString().isNotEmpty)
+                        _InfoChip(
+                          icon: Icons.signal_cellular_alt,
+                          text: difficulty,
+                        ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '🥘 Ingredientes',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Color(0xFF27AE60),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   ...ingredients.map(
-                    (ing) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
+                    (ingredient) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Icon(
                             Icons.circle,
@@ -535,24 +697,122 @@ class _RecipeBubble extends StatelessWidget {
                             color: Color(0xFF2ECC71),
                           ),
                           const SizedBox(width: 8),
-                          Text(ing, style: const TextStyle(fontSize: 14)),
+                          Expanded(
+                            child: Text(
+                              ingredient,
+                              style: const TextStyle(
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-
+                  if (optionalIngredients.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      '✨ Ingredientes opcionales',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...optionalIngredients.map(
+                      (ingredient) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.add_circle_outline,
+                              size: 15,
+                              color: Color(0xFFF39C12),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                ingredient,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
                   const Text(
-                    '👩‍🍳 Instrucciones:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    '👩‍🍳 Preparación',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Color(0xFF27AE60),
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    instructions,
-                    style: const TextStyle(fontSize: 14, height: 1.4),
+                  const SizedBox(height: 8),
+                  ...List.generate(
+                    preparation.length,
+                    (index) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 26,
+                              height: 26,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF2ECC71),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${index + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                preparation[index],
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 12),
-
+                  if (advice.toString().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8E7),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '💡 Consejo de Amelia\n$advice',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
@@ -584,7 +844,9 @@ class _RecipeBubble extends StatelessWidget {
                       Expanded(
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFFF39C12)),
+                            side: const BorderSide(
+                              color: Color(0xFFF39C12),
+                            ),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -608,14 +870,62 @@ class _RecipeBubble extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    time,
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
-                    textAlign: TextAlign.end,
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      time,
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 10,
+                      ),
+                    ),
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _InfoChip({
+    required this.icon,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F8F4),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 15,
+            color: const Color(0xFF27AE60),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF27AE60),
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
