@@ -70,101 +70,162 @@ class _ChatScreenState extends State<ChatScreen> {
   // ============================================================
 
   Future<void> _sendMessage() async {
-    final text = _controller.text.trim();
+  final text = _controller.text.trim();
 
-    if (text.isEmpty || _isLoading) return;
+  if (text.isEmpty || _isLoading) return;
 
-    setState(() {
-      messages.add({
-        'text': text,
-        'isUser': true,
-        'time': _getCurrentTime(),
-      });
-      _isLoading = true;
+  setState(() {
+    messages.add({
+      'text': text,
+      'isUser': true,
+      'time': _getCurrentTime(),
     });
+    _isLoading = true;
+  });
 
-    _controller.clear();
+  _controller.clear();
+
+  try {
+    final response = await _deepSeekService.sendMessage(
+      messages: [
+        {'role': 'system', 'content': ameliaPrompt},
+        {'role': 'system', 'content': enginePrompt},
+        {'role': 'system', 'content': recipePrompt},
+        {'role': 'user', 'content': text},
+      ],
+    );
+
+    debugPrint('========== RESPUESTA DE DEEPSEEK ==========');
+    debugPrint(response);
+    debugPrint('============================================');
+
+    // ------------------------------------------------------------
+    // LIMPIAR POSIBLES BLOQUES DE MARKDOWN
+    // ------------------------------------------------------------
+
+    String cleanResponse = response.trim();
+
+    cleanResponse = cleanResponse
+        .replaceAll('```json', '')
+        .replaceAll('```JSON', '')
+        .replaceAll('```', '')
+        .trim();
+
+    // ------------------------------------------------------------
+    // INTENTAR ENCONTRAR EL JSON
+    // ------------------------------------------------------------
+
+    final firstBrace = cleanResponse.indexOf('{');
+    final lastBrace = cleanResponse.lastIndexOf('}');
+
+    if (firstBrace != -1 && lastBrace != -1) {
+      cleanResponse =
+          cleanResponse.substring(firstBrace, lastBrace + 1).trim();
+    }
+
+    debugPrint('========== JSON LIMPIO ==========');
+    debugPrint(cleanResponse);
+    debugPrint('=================================');
+
+    dynamic data;
 
     try {
-      final response = await _deepSeekService.sendMessage(
-        messages: [
-          {'role': 'system', 'content': ameliaPrompt},
-          {'role': 'system', 'content': enginePrompt},
-          {'role': 'system', 'content': recipePrompt},
-          {'role': 'user', 'content': text},
-        ],
-      );
-
-      final cleanResponse = response
-          .replaceAll('```json', '')
-          .replaceAll('```', '')
-          .trim();
-
-      dynamic data;
-      try {
-        data = jsonDecode(cleanResponse);
-      } catch (_) {
-        data = null;
-      }
-
-      if (data is Map<String, dynamic> && data['type'] == 'recipe') {
-        final recipe = {
-          'name': data['name'] ?? 'Receta de Amelia',
-          'description': data['description'] ?? '',
-          'servings': data['servings'],
-          'time': data['time'] ?? '',
-          'difficulty': data['difficulty'] ?? '',
-          'ingredients': List<String>.from(data['ingredients'] ?? []),
-          'optionalIngredients':
-              List<String>.from(data['optionalIngredients'] ?? []),
-          'preparation': List<String>.from(data['preparation'] ?? []),
-          'advice': data['advice'] ?? '',
-          'finalMessage': data['finalMessage'] ?? '',
-        };
-
-        setState(() {
-          messages.add({
-            'text': data['finalMessage'] ?? '¡Aquí tienes tu receta! 👩‍🍳',
-            'isUser': false,
-            'time': _getCurrentTime(),
-          });
-
-          messages.add({
-            'text': '',
-            'isUser': false,
-            'isRecipe': true,
-            'time': _getCurrentTime(),
-            'recipeData': recipe,
-          });
-        });
-      } else {
-        setState(() {
-          messages.add({
-            'text': response,
-            'isUser': false,
-            'time': _getCurrentTime(),
-          });
-        });
-      }
+      data = jsonDecode(cleanResponse);
     } catch (e) {
-      debugPrint('Error al procesar respuesta: $e');
+      debugPrint('ERROR JSON: $e');
+      data = null;
+    }
+
+    // ------------------------------------------------------------
+    // SI ES UNA RECETA
+    // ------------------------------------------------------------
+
+    if (data is Map<String, dynamic> &&
+        data['type']?.toString().toLowerCase() == 'recipe') {
+      
+      final recipe = {
+        'type': 'recipe',
+        'name': data['name']?.toString() ?? 'Receta de Amelia',
+        'description': data['description']?.toString() ?? '',
+        'servings': data['servings'],
+        'time': data['time']?.toString() ?? '',
+        'difficulty': data['difficulty']?.toString() ?? '',
+        'ingredients': data['ingredients'] is List
+            ? List<String>.from(
+                data['ingredients'].map((e) => e.toString()),
+              )
+            : <String>[],
+        'optionalIngredients': data['optionalIngredients'] is List
+            ? List<String>.from(
+                data['optionalIngredients'].map((e) => e.toString()),
+              )
+            : <String>[],
+        'preparation': data['preparation'] is List
+            ? List<String>.from(
+                data['preparation'].map((e) => e.toString()),
+              )
+            : <String>[],
+        'advice': data['advice']?.toString() ?? '',
+        'finalMessage': data['finalMessage']?.toString() ?? '',
+      };
+
+      debugPrint('========== RECETA DETECTADA ==========');
+      debugPrint(recipe.toString());
+      debugPrint('======================================');
+
+      setState(() {
+        // Mensaje final de Amelia
+        if ((recipe['finalMessage'] as String).isNotEmpty) {
+          messages.add({
+            'text': recipe['finalMessage'],
+            'isUser': false,
+            'time': _getCurrentTime(),
+          });
+        }
+
+        // Tarjeta visual de receta
+        messages.add({
+          'text': '',
+          'isUser': false,
+          'isRecipe': true,
+          'time': _getCurrentTime(),
+          'recipeData': recipe,
+        });
+      });
+    } else {
+      // ----------------------------------------------------------
+      // NO ES RECETA
+      // ----------------------------------------------------------
+
+      debugPrint('La respuesta NO fue reconocida como receta.');
 
       setState(() {
         messages.add({
-          'text':
-              'Lo siento, tuve un pequeño problema al preparar la respuesta. 😅 ¿Podemos intentarlo de nuevo?',
+          'text': response,
           'isUser': false,
           'time': _getCurrentTime(),
         });
       });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+    }
+  } catch (e) {
+    debugPrint('Error al procesar respuesta: $e');
+
+    setState(() {
+      messages.add({
+        'text':
+            'Lo siento, tuve un pequeño problema al preparar la respuesta. 😅 ¿Podemos intentarlo de nuevo?',
+        'isUser': false,
+        'time': _getCurrentTime(),
+      });
+    });
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+}
 
   // ============================================================
   // MODO COCINAR
