@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'step_by_step_screen.dart'; // <-- NUEVO IMPORT
+import '/screens/step_by_step_screen.dart'; // <-- NUEVO IMPORT
 
 class RecipeScreen extends StatelessWidget {
   final String recipeName;
@@ -128,35 +128,35 @@ class RecipeScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2ECC71),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                icon: const Icon(Icons.chat, color: Colors.white),
-                label: const Text(
-                  '👩‍🍳 Modo Cocinar',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => StepByStepScreen(
-                        recipeName: recipeName,
-                        ingredients: ingredients,
-                        instructions: instructions,
-                      ),
-                    ),
-                  );
-                },
-              ),
+  style: ElevatedButton.styleFrom(
+    backgroundColor: const Color(0xFF2ECC71),
+    padding: const EdgeInsets.symmetric(vertical: 14),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+  ),
+  icon: const Icon(Icons.chat, color: Colors.white),
+  label: const Text(
+    '👩‍🍳 Modo Cocinar',
+    style: TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+      color: Colors.white,
+    ),
+  ),
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StepByStepScreen(
+          recipeName: recipeName,
+          ingredients: ingredients,
+          instructions: instructions,
+        ),
+      ),
+    );
+  },
+),
             ),
           ],
         ),

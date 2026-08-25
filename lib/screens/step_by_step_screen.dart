@@ -1,4 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+
+import '/services/deepseek_service.dart';
+import '/prompts/amelia_prompt.dart';
+import '/prompts/cooking_prompt.dart';
 
 class StepByStepScreen extends StatefulWidget {
   final String recipeName;
@@ -17,31 +22,152 @@ class StepByStepScreen extends StatefulWidget {
 }
 
 class _StepByStepScreenState extends State<StepByStepScreen> {
+  final DeepSeekService _deepSeekService = DeepSeekService();
+  final TextEditingController _doubtController = TextEditingController();
+  final List<Map<String, String>> _conversation = [];
+
+  String _ameliaMessage = '';
+  bool _isLoading = false;
   int currentStep = 0;
   late List<String> steps;
-  final TextEditingController _doubtController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+
+    // Convertir la cadena de texto con saltos de línea en una lista de pasos
     steps = widget.instructions
         .split('\n')
-        .where((s) => s.trim().isNotEmpty)
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
         .toList();
+
+    _startCooking();
   }
 
-  void _sendDoubt() {
+  @override
+  void dispose() {
+    _doubtController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _startCooking() async {
+    await _askAmelia('Quiero comenzar a cocinar esta receta.');
+  }
+
+  Future<void> _askAmelia(String userMessage) async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final recipeData = {
+        'name': widget.recipeName,
+        'ingredients': widget.ingredients,
+        'instructions': widget.instructions,
+      };
+
+      final recipeJson = jsonEncode(recipeData);
+
+      final messages = <Map<String, String>>[
+        {'role': 'system', 'content': ameliaPrompt},
+        {'role': 'system', 'content': cookingPrompt},
+        {
+          'role': 'system',
+          'content': '''
+Esta es la receta que el usuario está preparando:
+
+$recipeJson
+
+Paso actual de la interfaz: ${currentStep + 1} de ${steps.length}.
+
+El paso actual es:
+${steps.isNotEmpty && currentStep < steps.length ? steps[currentStep] : 'No hay paso actual.'}
+
+Utiliza esta receta como fuente principal de verdad.
+No inventes pasos, ingredientes, tiempos ni cantidades.
+''',
+        },
+      ];
+
+      messages.addAll(_conversation);
+      messages.add({'role': 'user', 'content': userMessage});
+
+      final response = await _deepSeekService.sendMessage(
+        messages: messages,
+      );
+
+      _conversation.add({'role': 'user', 'content': userMessage});
+      _conversation.add({'role': 'assistant', 'content': response});
+
+      if (!mounted) return;
+
+      setState(() {
+        _ameliaMessage = response;
+      });
+    } catch (e) {
+      debugPrint('Error en Cocina con Amelia: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _ameliaMessage =
+            'Tuve un pequeño problema para responderte. 😅 Inténtalo nuevamente.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _sendDoubt() async {
     final text = _doubtController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isLoading) return;
+
+    _doubtController.clear();
+    await _askAmelia(text);
+  }
+
+  void _nextStep() {
+    if (currentStep < steps.length - 1) {
+      setState(() {
+        currentStep++;
+      });
+
+      _askAmelia(
+        'Ya terminé el paso ${currentStep}. Indícame qué debo hacer ahora.',
+      );
+    } else {
+      _finishCooking();
+    }
+  }
+
+  void _previousStep() {
+    if (currentStep > 0) {
+      setState(() {
+        currentStep--;
+      });
+
+      _askAmelia(
+        'Quiero regresar al paso ${currentStep + 1}. Ayúdame a continuar desde ahí.',
+      );
+    }
+  }
+
+  void _finishCooking() {
+    Navigator.pop(context);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('💬 Tu pregunta: "$text"'),
-        backgroundColor: const Color(0xFF2ECC71),
-        duration: const Duration(seconds: 2),
+      const SnackBar(
+        content: Text('🎉 ¡Receta completada con Amelia!'),
+        backgroundColor: Color(0xFF2ECC71),
       ),
     );
-    _doubtController.clear();
   }
 
   @override
@@ -60,9 +186,7 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          onPressed: () => Navigator.pop(context),
         ),
       ),
       backgroundColor: const Color(0xFFFFF8F0),
@@ -70,7 +194,6 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Column(
           children: [
-            // ===== INDICADOR DE PASO =====
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
@@ -78,7 +201,9 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Text(
-                'Paso ${currentStep + 1} de ${steps.length}',
+                steps.isEmpty
+                    ? 'Cocinando con Amelia'
+                    : 'Paso ${currentStep + 1} de ${steps.length}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -87,16 +212,14 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
               ),
             ),
             const SizedBox(height: 12),
-
-            // ===== CONTENEDOR DE INSTRUCCIÓN =====
             Expanded(
               flex: 3,
               child: Center(
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 28,
+                    horizontal: 28,
+                    vertical: 24,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -109,33 +232,38 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.check_circle_outline,
-                        size: 36,
-                        color: Color(0xFF2ECC71),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        steps[currentStep],
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w500,
-                          height: 1.5,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircleAvatar(
+                          radius: 30,
+                          backgroundColor: Color(0xFF2ECC71),
+                          backgroundImage: AssetImage('assets/amelia.jpg'),
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                        const SizedBox(height: 14),
+                        if (_isLoading)
+                          const CircularProgressIndicator(
+                            color: Color(0xFF2ECC71),
+                          )
+                        else
+                          Text(
+                            _ameliaMessage.isEmpty
+                                ? '¡Vamos a cocinar juntos! 👩‍🍳'
+                                : _ameliaMessage,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              height: 1.5,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-
-            // ===== ESPACIO REDUCIDO ENTRE RECETA Y CAMPO =====
-            const SizedBox(height: 6), // <-- CASI PEGADO
-            // ===== CAMPO PARA ESCRIBIR DUDAS (JUSTO ABAJO DE LA RECETA) =====
+            const SizedBox(height: 6),
             Row(
               children: [
                 Expanded(
@@ -153,6 +281,7 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                     ),
                     child: TextField(
                       controller: _doubtController,
+                      enabled: !_isLoading,
                       decoration: const InputDecoration(
                         hintText: '¿Tienes alguna duda? Pregúntame',
                         border: InputBorder.none,
@@ -164,27 +293,19 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2ECC71),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF2ECC71),
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF2ECC71).withOpacity(0.4),
-                        blurRadius: 12,
-                      ),
-                    ],
                   ),
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendDoubt,
+                    onPressed: _isLoading ? null : _sendDoubt,
                     iconSize: 24,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-
-            // ===== BOTONES ANTERIOR Y SIGUIENTE =====
             Row(
               children: [
                 Expanded(
@@ -196,24 +317,16 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    icon: const Icon(
-                      Icons.arrow_back,
-                      color: Color(0xFF2ECC71),
-                    ),
-                    label: Text(
+                    icon: const Icon(Icons.arrow_back, color: Color(0xFF2ECC71)),
+                    label: const Text(
                       'Anterior',
                       style: TextStyle(
                         color: Color(0xFF2ECC71),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    onPressed: currentStep > 0
-                        ? () {
-                            setState(() {
-                              currentStep--;
-                            });
-                          }
-                        : null,
+                    onPressed:
+                        currentStep > 0 && !_isLoading ? _previousStep : null,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -226,7 +339,12 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    icon: const Icon(Icons.arrow_forward, color: Colors.white),
+                    icon: Icon(
+                      currentStep < steps.length - 1
+                          ? Icons.arrow_forward
+                          : Icons.check,
+                      color: Colors.white,
+                    ),
                     label: Text(
                       currentStep < steps.length - 1
                           ? 'Siguiente'
@@ -236,31 +354,14 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    onPressed: () {
-                      if (currentStep < steps.length - 1) {
-                        setState(() {
-                          currentStep++;
-                        });
-                      } else {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('🎉 ¡Receta completada!'),
-                            backgroundColor: Color(0xFF2ECC71),
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: _isLoading ? null : _nextStep,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text(
                 'Volver al chat',
                 style: TextStyle(color: Colors.grey),

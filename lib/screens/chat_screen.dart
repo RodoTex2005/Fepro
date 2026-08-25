@@ -231,19 +231,22 @@ class _ChatScreenState extends State<ChatScreen> {
   // MODO COCINAR
   // ============================================================
 
-  void _goToCookingMode(Map<String, dynamic> recipe) {
+void _goToCookingMode(Map<String, dynamic> recipe) {
+  final recipeName = recipe['name'] ?? 'Receta';
+  final ingredients = List<String>.from(recipe['ingredients'] ?? []);
+  final instructions = List<String>.from(recipe['preparation'] ?? []).join('\n');
+
   Navigator.push(
     context,
     MaterialPageRoute(
       builder: (_) => StepByStepScreen(
-        recipeName: recipe['name'] ?? 'Receta',
-        ingredients: List<String>.from(recipe['ingredients'] ?? []),
-        instructions: List<String>.from(recipe['preparation'] ?? []).join('\n'),
+        recipeName: recipeName,
+        ingredients: ingredients,
+        instructions: instructions,
       ),
     ),
   );
 }
-
   // ============================================================
   // GUARDAR RECETA
   // ============================================================
@@ -362,11 +365,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 if (isRecipe) {
                   return _RecipeBubble(
-                    recipeData: msg['recipeData'],
-                    onCook: () => _goToCookingMode(msg['recipeData']),
-                    onSave: () => _saveRecipe(msg['recipeData']),
-                    time: msg['time'],
-                  );
+                  recipeData: msg['recipeData'],
+                  onCook: () => _goToCookingMode(msg['recipeData']),
+                  onSave: () => _saveRecipe(msg['recipeData']),
+                  time: msg['time'],
+                );
                 }
 
                 return _ChatBubble(
@@ -629,7 +632,6 @@ class _TypingBubble extends StatelessWidget {
 // ================================================================
 // BURBUJA DE RECETA
 // ================================================================
-
 class _RecipeBubble extends StatelessWidget {
   final Map<String, dynamic> recipeData;
   final VoidCallback onCook;
