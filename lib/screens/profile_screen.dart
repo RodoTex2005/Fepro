@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'saved_recipes_screen.dart';
@@ -14,6 +15,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic>? userData;
+  bool _isLoadingUser = true;
   List<String> userBadges = [];
   String selectedFrame = 'classic';
 
@@ -79,6 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUserData();
     _loadBadges();
     _loadSelectedFrame();
   }
@@ -98,6 +102,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     }
   }
+
+  Future<void> _loadUserData() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      setState(() {
+        _isLoadingUser = false;
+      });
+      return;
+    }
+
+    final document = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(user.uid)
+        .get();
+
+    if (document.exists) {
+      setState(() {
+        userData = document.data();
+        _isLoadingUser = false;
+      });
+    } else {
+      setState(() {
+        _isLoadingUser = false;
+      });
+    }
+  } catch (e) {
+    print('ERROR AL CARGAR USUARIO: $e');
+
+    setState(() {
+      _isLoadingUser = false;
+    });
+  }
+}
 
   Future<void> _loadSelectedFrame() async {
     final prefs = await SharedPreferences.getInstance();
@@ -177,8 +216,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Usuario Recetias',
+                Text(
+                  userData?['usuario'] ?? 'Usuario',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -190,6 +229,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   '🍳 Amante de la cocina',
                   style: TextStyle(fontSize: 16, color: Colors.white70),
                 ),
+                const SizedBox(height: 4),
+
+                Text(
+                  userData?['correo'] ?? 'Sin correo',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white70,
+                  ),
+                ),
                 const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -197,6 +245,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _StatItem('Recetas', '15'),
                     _StatItem('Likes totales', '95'),
                     _StatItem('Guardadas', '12'),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _StatItem(
+                      'Nivel',
+                      '${userData?['nivel'] ?? 1}',
+                    ),
+                    _StatItem(
+                      'Experiencia',
+                      '${userData?['experiencia'] ?? 0}',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
