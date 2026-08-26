@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
@@ -9,9 +10,11 @@ import 'screens/home_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Carga la API Key de Gemini desde el archivo .env
+  // (usado por el módulo de reconocimiento de ingredientes)
+  await dotenv.load(fileName: ".env");
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(const RecetiasApp());
 }
@@ -38,6 +41,7 @@ class RecetiasApp extends StatelessWidget {
     );
   }
 }
+
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -50,9 +54,7 @@ class AuthGate extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF2ECC71),
-              ),
+              child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
             ),
           );
         }

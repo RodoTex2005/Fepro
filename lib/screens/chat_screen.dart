@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'step_by_step_screen.dart';
 import '/services/deepseek_service.dart';
-import '/models/recipe_model.dart';
+import '/services/gemini_service.dart';
 
 import '/prompts/amelia_prompt.dart';
 import '/prompts/engine_prompt.dart';
@@ -19,18 +21,23 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   // ============================================================
-  // SERVICIO DE DEEPSEEK
+  // SERVICIOS
   // ============================================================
 
   final DeepSeekService _deepSeekService = DeepSeekService();
+  final GeminiService _geminiService = GeminiService();
+  final ImagePicker _picker = ImagePicker();
 
   // ============================================================
   // VARIABLES DEL CHAT
   // ============================================================
 
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _textFieldFocusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
   final List<Map<String, dynamic>> messages = [];
   bool _isLoading = false;
+  String _loadingText = 'Amelia está pensando...';
 
   // ============================================================
   // INICIO
@@ -47,7 +54,21 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _textFieldFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   // ============================================================
@@ -58,195 +79,215 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       messages.add({
         'text':
-            '¡Hola! 👋 Soy Amelia, tu asistente de cocina. ¿Qué vamos a preparar hoy? 🍳',
+            '¡Hola! 👋 Soy Amelia, tu asistente de cocina. ¿Qué vamos a preparar hoy? Puedes escribirme o enviarme una foto de tus ingredientes con la cámara o galería. 🍳📸',
         'isUser': false,
         'time': _getCurrentTime(),
       });
     });
+    _scrollToBottom();
   }
 
   // ============================================================
   // ENVIAR MENSAJE A DEEPSEEK
   // ============================================================
 
-  Future<void> _sendMessage() async {
-  final text = _controller.text.trim();
+  Future<void> _sendMessage({String? customText}) async {
+    final text = (customText ?? _controller.text).trim();
 
-  if (text.isEmpty || _isLoading) return;
-
-  setState(() {
-    messages.add({
-      'text': text,
-      'isUser': true,
-      'time': _getCurrentTime(),
-    });
-    _isLoading = true;
-  });
-
-  _controller.clear();
-
-  try {
-    final response = await _deepSeekService.sendMessage(
-      messages: [
-        {'role': 'system', 'content': ameliaPrompt},
-        {'role': 'system', 'content': enginePrompt},
-        {'role': 'system', 'content': recipePrompt},
-        {'role': 'user', 'content': text},
-      ],
-    );
-
-    debugPrint('========== RESPUESTA DE DEEPSEEK ==========');
-    debugPrint(response);
-    debugPrint('============================================');
-
-    // ------------------------------------------------------------
-    // LIMPIAR POSIBLES BLOQUES DE MARKDOWN
-    // ------------------------------------------------------------
-
-    String cleanResponse = response.trim();
-
-    cleanResponse = cleanResponse
-        .replaceAll('```json', '')
-        .replaceAll('```JSON', '')
-        .replaceAll('```', '')
-        .trim();
-
-    // ------------------------------------------------------------
-    // INTENTAR ENCONTRAR EL JSON
-    // ------------------------------------------------------------
-
-    final firstBrace = cleanResponse.indexOf('{');
-    final lastBrace = cleanResponse.lastIndexOf('}');
-
-    if (firstBrace != -1 && lastBrace != -1) {
-      cleanResponse =
-          cleanResponse.substring(firstBrace, lastBrace + 1).trim();
-    }
-
-    debugPrint('========== JSON LIMPIO ==========');
-    debugPrint(cleanResponse);
-    debugPrint('=================================');
-
-    dynamic data;
-
-    try {
-      data = jsonDecode(cleanResponse);
-    } catch (e) {
-      debugPrint('ERROR JSON: $e');
-      data = null;
-    }
-
-    // ------------------------------------------------------------
-    // SI ES UNA RECETA
-    // ------------------------------------------------------------
-
-    if (data is Map<String, dynamic> &&
-        data['type']?.toString().toLowerCase() == 'recipe') {
-      
-      final recipe = {
-        'type': 'recipe',
-        'name': data['name']?.toString() ?? 'Receta de Amelia',
-        'description': data['description']?.toString() ?? '',
-        'servings': data['servings'],
-        'time': data['time']?.toString() ?? '',
-        'difficulty': data['difficulty']?.toString() ?? '',
-        'ingredients': data['ingredients'] is List
-            ? List<String>.from(
-                data['ingredients'].map((e) => e.toString()),
-              )
-            : <String>[],
-        'optionalIngredients': data['optionalIngredients'] is List
-            ? List<String>.from(
-                data['optionalIngredients'].map((e) => e.toString()),
-              )
-            : <String>[],
-        'preparation': data['preparation'] is List
-            ? List<String>.from(
-                data['preparation'].map((e) => e.toString()),
-              )
-            : <String>[],
-        'advice': data['advice']?.toString() ?? '',
-        'finalMessage': data['finalMessage']?.toString() ?? '',
-      };
-
-      debugPrint('========== RECETA DETECTADA ==========');
-      debugPrint(recipe.toString());
-      debugPrint('======================================');
-
-      setState(() {
-        // Mensaje final de Amelia
-        if ((recipe['finalMessage'] as String).isNotEmpty) {
-          messages.add({
-            'text': recipe['finalMessage'],
-            'isUser': false,
-            'time': _getCurrentTime(),
-          });
-        }
-
-        // Tarjeta visual de receta
-        messages.add({
-          'text': '',
-          'isUser': false,
-          'isRecipe': true,
-          'time': _getCurrentTime(),
-          'recipeData': recipe,
-        });
-      });
-    } else {
-      // ----------------------------------------------------------
-      // NO ES RECETA
-      // ----------------------------------------------------------
-
-      debugPrint('La respuesta NO fue reconocida como receta.');
-
-      setState(() {
-        messages.add({
-          'text': response,
-          'isUser': false,
-          'time': _getCurrentTime(),
-        });
-      });
-    }
-  } catch (e) {
-    debugPrint('Error al procesar respuesta: $e');
+    if (text.isEmpty || _isLoading) return;
 
     setState(() {
       messages.add({
-        'text':
-            'Lo siento, tuve un pequeño problema al preparar la respuesta. 😅 ¿Podemos intentarlo de nuevo?',
-        'isUser': false,
+        'text': text,
+        'isUser': true,
         'time': _getCurrentTime(),
       });
+      _isLoading = true;
+      _loadingText = 'Amelia está pensando...';
     });
-  } finally {
-    if (mounted) {
+
+    if (customText == null) {
+      _controller.clear();
+    }
+    _scrollToBottom();
+
+    try {
+      // Incluimos prompts del sistema e historial reciente del chat
+      final List<Map<String, String>> promptMessages = [
+        {'role': 'system', 'content': ameliaPrompt},
+        {'role': 'system', 'content': enginePrompt},
+        {'role': 'system', 'content': recipePrompt},
+      ];
+
+      for (final msg in messages) {
+        final msgText = msg['text'] as String?;
+        final isUser = msg['isUser'] as bool? ?? false;
+        if (msgText != null && msgText.isNotEmpty && msg['isRecipe'] != true) {
+          promptMessages.add({
+            'role': isUser ? 'user' : 'assistant',
+            'content': msgText,
+          });
+        }
+      }
+
+      final response = await _deepSeekService.sendMessage(
+        messages: promptMessages,
+      );
+
+      debugPrint('========== RESPUESTA DE DEEPSEEK ==========');
+      debugPrint(response);
+      debugPrint('============================================');
+
+      // ------------------------------------------------------------
+      // LIMPIAR POSIBLES BLOQUES DE MARKDOWN
+      // ------------------------------------------------------------
+
+      String cleanResponse = response.trim();
+
+      cleanResponse = cleanResponse
+          .replaceAll('```json', '')
+          .replaceAll('```JSON', '')
+          .replaceAll('```', '')
+          .trim();
+
+      // ------------------------------------------------------------
+      // INTENTAR ENCONTRAR EL JSON
+      // ------------------------------------------------------------
+
+      final firstBrace = cleanResponse.indexOf('{');
+      final lastBrace = cleanResponse.lastIndexOf('}');
+
+      if (firstBrace != -1 && lastBrace != -1) {
+        cleanResponse =
+            cleanResponse.substring(firstBrace, lastBrace + 1).trim();
+      }
+
+      debugPrint('========== JSON LIMPIO ==========');
+      debugPrint(cleanResponse);
+      debugPrint('=================================');
+
+      dynamic data;
+
+      try {
+        data = jsonDecode(cleanResponse);
+      } catch (e) {
+        debugPrint('ERROR JSON: $e');
+        data = null;
+      }
+
+      // ------------------------------------------------------------
+      // SI ES UNA RECETA
+      // ------------------------------------------------------------
+
+      if (data is Map<String, dynamic> &&
+          data['type']?.toString().toLowerCase() == 'recipe') {
+        final recipe = {
+          'type': 'recipe',
+          'name': data['name']?.toString() ?? 'Receta de Amelia',
+          'description': data['description']?.toString() ?? '',
+          'servings': data['servings'],
+          'time': data['time']?.toString() ?? '',
+          'difficulty': data['difficulty']?.toString() ?? '',
+          'ingredients': data['ingredients'] is List
+              ? List<String>.from(
+                  data['ingredients'].map((e) => e.toString()),
+                )
+              : <String>[],
+          'optionalIngredients': data['optionalIngredients'] is List
+              ? List<String>.from(
+                  data['optionalIngredients'].map((e) => e.toString()),
+                )
+              : <String>[],
+          'preparation': data['preparation'] is List
+              ? List<String>.from(
+                  data['preparation'].map((e) => e.toString()),
+                )
+              : <String>[],
+          'advice': data['advice']?.toString() ?? '',
+          'finalMessage': data['finalMessage']?.toString() ?? '',
+        };
+
+        debugPrint('========== RECETA DETECTADA ==========');
+        debugPrint(recipe.toString());
+        debugPrint('======================================');
+
+        setState(() {
+          // Mensaje final de Amelia
+          if ((recipe['finalMessage'] as String).isNotEmpty) {
+            messages.add({
+              'text': recipe['finalMessage'],
+              'isUser': false,
+              'time': _getCurrentTime(),
+            });
+          }
+
+          // Tarjeta visual de receta
+          messages.add({
+            'text': '',
+            'isUser': false,
+            'isRecipe': true,
+            'time': _getCurrentTime(),
+            'recipeData': recipe,
+          });
+        });
+      } else {
+        // ----------------------------------------------------------
+        // NO ES RECETA
+        // ----------------------------------------------------------
+
+        debugPrint('La respuesta NO fue reconocida como receta.');
+
+        setState(() {
+          messages.add({
+            'text': response,
+            'isUser': false,
+            'time': _getCurrentTime(),
+          });
+        });
+      }
+    } catch (e) {
+      debugPrint('Error al procesar respuesta: $e');
+
       setState(() {
-        _isLoading = false;
+        messages.add({
+          'text':
+              'Lo siento, tuve un pequeño problema al preparar la respuesta. 😅 ¿Podemos intentarlo de nuevo?',
+          'isUser': false,
+          'time': _getCurrentTime(),
+        });
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        _scrollToBottom();
+      }
     }
   }
-}
 
   // ============================================================
   // MODO COCINAR
   // ============================================================
 
-void _goToCookingMode(Map<String, dynamic> recipe) {
-  final recipeName = recipe['name'] ?? 'Receta';
-  final ingredients = List<String>.from(recipe['ingredients'] ?? []);
-  final instructions = List<String>.from(recipe['preparation'] ?? []).join('\n');
+  void _goToCookingMode(Map<String, dynamic> recipe) {
+    final recipeName = recipe['name'] ?? 'Receta';
+    final ingredients = List<String>.from(recipe['ingredients'] ?? []);
+    final instructions =
+        List<String>.from(recipe['preparation'] ?? []).join('\n');
 
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => StepByStepScreen(
-        recipeName: recipeName,
-        ingredients: ingredients,
-        instructions: instructions,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StepByStepScreen(
+          recipeName: recipeName,
+          ingredients: ingredients,
+          instructions: instructions,
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
+
   // ============================================================
   // GUARDAR RECETA
   // ============================================================
@@ -308,27 +349,148 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
   }
 
   // ============================================================
-  // CÁMARA Y GALERÍA
+  // CÁMARA, GALERÍA Y RECONOCIMIENTO CON GEMINI
   // ============================================================
 
+  Future<void> _pickImage(ImageSource source) async {
+    if (_isLoading) return;
+
+    try {
+      final XFile? picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+
+      if (picked == null) return;
+
+      final File imageFile = File(picked.path);
+
+      setState(() {
+        messages.add({
+          'text': '📷 Foto de ingredientes',
+          'image': imageFile,
+          'isUser': true,
+          'time': _getCurrentTime(),
+        });
+        _isLoading = true;
+        _loadingText = 'Amelia y Gemini están reconociendo los ingredientes...';
+      });
+
+      _scrollToBottom();
+
+      final result = await _geminiService.recognizeIngredients(imageFile);
+
+      if (!mounted) return;
+
+      if (result.ingredientes.isNotEmpty) {
+        final ingredientsList =
+            result.ingredientes.map((i) => '• $i').join('\n');
+        final ameliaResponse =
+            '¡He analizado tu foto con Gemini! 🔍✨\n\n'
+            'Detecté estos ingredientes:\n$ingredientsList\n\n'
+            '${result.mensaje} ¿Quieres que preparemos una receta con ellos?';
+
+        setState(() {
+          messages.add({
+            'text': ameliaResponse,
+            'isUser': false,
+            'time': _getCurrentTime(),
+            'detectedIngredients': result.ingredientes,
+            'actionTaken': false,
+          });
+        });
+      } else {
+        setState(() {
+          messages.add({
+            'text': result.mensaje.isNotEmpty
+                ? result.mensaje
+                : 'No pude reconocer ingredientes con claridad en la imagen. Intenta con otra foto con mejor iluminación o ángulo. 📷',
+            'isUser': false,
+            'time': _getCurrentTime(),
+          });
+        });
+      }
+    } catch (e, stack) {
+      debugPrint('Error al reconocer ingredientes con Gemini: $e');
+      debugPrint('StackTrace: $stack');
+      if (!mounted) return;
+
+      String errorMsg = 'Hubo un inconveniente al procesar la imagen: $e';
+      if (e.toString().contains('GEMINI_API_KEY')) {
+        errorMsg =
+            '⚠️ GEMINI_API_KEY no está configurada en el archivo .env. Por favor revísala.';
+      }
+
+      setState(() {
+        messages.add({
+          'text': errorMsg,
+          'isUser': false,
+          'time': _getCurrentTime(),
+        });
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        _scrollToBottom();
+      }
+    }
+  }
+
   void _openCamera() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('📷 Seguimos trabajando en esto...'),
-        backgroundColor: Color(0xFF2ECC71),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    _pickImage(ImageSource.camera);
   }
 
   void _openGallery() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🖼️ Seguimos trabajando en esto...'),
-        backgroundColor: Color(0xFF2ECC71),
-        duration: Duration(seconds: 1),
-      ),
+    _pickImage(ImageSource.gallery);
+  }
+
+  // ============================================================
+  // CONFIRMAR / EDITAR INGREDIENTES DETECTADOS
+  // ============================================================
+
+  void _handleConfirmIngredients(Map<String, dynamic> msg) {
+    if (msg['actionTaken'] == true) return;
+
+    setState(() {
+      msg['actionTaken'] = true;
+    });
+
+    _sendMessage(
+      customText:
+          'Sí, los ingredientes detectados son correctos. Por favor, prepárame una receta deliciosa con ellos.',
     );
+  }
+
+  void _handleEditIngredients(Map<String, dynamic> msg) {
+    if (msg['actionTaken'] == true) return;
+
+    setState(() {
+      msg['actionTaken'] = true;
+    });
+
+    final detected = msg['detectedIngredients'] != null
+        ? List<String>.from(msg['detectedIngredients'])
+        : <String>[];
+    final ingredientesStr = detected.join(', ');
+
+    // Igual que "Confirmar", el mensaje final debe terminar con la frase
+    // que hace que DeepSeek devuelva el JSON de receta (y por lo tanto
+    // se muestre con el diseño de _RecipeBubble). Dejamos el cursor en
+    // medio para que el usuario agregue ingredientes sin perder esa frase.
+    final prefix = ingredientesStr.isNotEmpty
+        ? 'Los ingredientes que tengo son: $ingredientesStr, y también quiero agregar: '
+        : 'Además de esos ingredientes, también quiero agregar: ';
+    const suffix = '. Por favor, prepárame una receta deliciosa con todos ellos.';
+
+    _controller.text = prefix + suffix;
+    _controller.selection = TextSelection.fromPosition(
+      TextPosition(offset: prefix.length),
+    );
+    _textFieldFocusNode.requestFocus();
   }
 
   // ============================================================
@@ -343,6 +505,7 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
         children: [
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               itemCount: messages.length + (_isLoading ? 2 : 1),
               itemBuilder: (context, index) {
@@ -351,7 +514,7 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
                 }
 
                 if (_isLoading && index == messages.length + 1) {
-                  return const _TypingBubble();
+                  return _TypingBubble(text: _loadingText);
                 }
 
                 final msgIndex = index - 1;
@@ -365,17 +528,24 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
 
                 if (isRecipe) {
                   return _RecipeBubble(
-                  recipeData: msg['recipeData'],
-                  onCook: () => _goToCookingMode(msg['recipeData']),
-                  onSave: () => _saveRecipe(msg['recipeData']),
-                  time: msg['time'],
-                );
+                    recipeData: msg['recipeData'],
+                    onCook: () => _goToCookingMode(msg['recipeData']),
+                    onSave: () => _saveRecipe(msg['recipeData']),
+                    time: msg['time'],
+                  );
                 }
 
                 return _ChatBubble(
-                  message: msg['text'],
-                  isUser: msg['isUser'],
-                  time: msg['time'],
+                  message: msg['text'] ?? '',
+                  image: msg['image'],
+                  isUser: msg['isUser'] ?? false,
+                  time: msg['time'] ?? '',
+                  detectedIngredients: msg['detectedIngredients'] != null
+                      ? List<String>.from(msg['detectedIngredients'])
+                      : null,
+                  actionTaken: msg['actionTaken'] ?? false,
+                  onConfirm: () => _handleConfirmIngredients(msg),
+                  onEdit: () => _handleEditIngredients(msg),
                 );
               },
             ),
@@ -399,6 +569,7 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
                     ),
                     child: TextField(
                       controller: _controller,
+                      focusNode: _textFieldFocusNode,
                       enabled: !_isLoading,
                       decoration: const InputDecoration(
                         hintText: 'Escribe un mensaje...',
@@ -414,7 +585,7 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
                 const SizedBox(width: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2ECC71).withOpacity(0.2),
+                    color: const Color(0xFF2ECC71).withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
@@ -422,6 +593,7 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
                       Icons.camera_alt,
                       color: Color(0xFF2ECC71),
                     ),
+                    tooltip: 'Tomar foto',
                     onPressed: _isLoading ? null : _openCamera,
                     iconSize: 24,
                   ),
@@ -429,7 +601,7 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
                 const SizedBox(width: 4),
                 Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2ECC71).withOpacity(0.2),
+                    color: const Color(0xFF2ECC71).withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
@@ -437,6 +609,7 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
                       Icons.photo,
                       color: Color(0xFF2ECC71),
                     ),
+                    tooltip: 'Galería',
                     onPressed: _isLoading ? null : _openGallery,
                     iconSize: 24,
                   ),
@@ -448,7 +621,7 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF2ECC71).withOpacity(0.4),
+                        color: const Color(0xFF2ECC71).withValues(alpha: 0.4),
                         blurRadius: 12,
                       ),
                     ],
@@ -458,7 +631,7 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
                       _isLoading ? Icons.hourglass_top : Icons.send,
                       color: Colors.white,
                     ),
-                    onPressed: _isLoading ? null : _sendMessage,
+                    onPressed: _isLoading ? null : () => _sendMessage(),
                     iconSize: 24,
                   ),
                 ),
@@ -477,93 +650,189 @@ void _goToCookingMode(Map<String, dynamic> recipe) {
 
 class _ChatBubble extends StatelessWidget {
   final String message;
+  final File? image;
   final bool isUser;
   final String time;
+  final List<String>? detectedIngredients;
+  final bool actionTaken;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onEdit;
 
   const _ChatBubble({
     required this.message,
+    this.image,
     required this.isUser,
     required this.time,
+    this.detectedIngredients,
+    this.actionTaken = false,
+    this.onConfirm,
+    this.onEdit,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment:
+            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (!isUser)
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: const Color(0xFF2ECC71),
-              backgroundImage: const AssetImage('assets/amelia.jpg'),
-              onBackgroundImageError: (error, stackTrace) {},
-              child: const Icon(
-                Icons.room_service,
-                size: 16,
-                color: Colors.white,
-              ),
-            ),
-          if (!isUser) const SizedBox(width: 8),
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isUser ? const Color(0xFF2ECC71) : Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft:
-                      isUser ? const Radius.circular(16) : Radius.zero,
-                  bottomRight:
-                      isUser ? Radius.zero : const Radius.circular(16),
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
+          Row(
+            mainAxisAlignment:
+                isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!isUser)
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: const Color(0xFF2ECC71),
+                  backgroundImage: const AssetImage('assets/amelia.jpg'),
+                  onBackgroundImageError: (error, stackTrace) {},
+                  child: const Icon(
+                    Icons.room_service,
+                    size: 16,
+                    color: Colors.white,
                   ),
-                ],
+                ),
+              if (!isUser) const SizedBox(width: 8),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isUser ? const Color(0xFF2ECC71) : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft:
+                          isUser ? const Radius.circular(16) : Radius.zero,
+                      bottomRight:
+                          isUser ? Radius.zero : const Radius.circular(16),
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (image != null) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            image!,
+                            width: 220,
+                            height: 220,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        if (message.isNotEmpty &&
+                            message != '📷 Foto de ingredientes')
+                          const SizedBox(height: 8),
+                      ],
+                      if (message.isNotEmpty &&
+                          (image == null || message != '📷 Foto de ingredientes'))
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            message,
+                            style: TextStyle(
+                              color: isUser ? Colors.white : Colors.black87,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: Text(
+                          time,
+                          style: TextStyle(
+                            color: isUser ? Colors.white70 : Colors.grey,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              if (isUser) const SizedBox(width: 8),
+              if (isUser)
+                const CircleAvatar(
+                  backgroundColor: Color(0xFFFDFBF7),
+                  radius: 16,
+                  child: Icon(
+                    Icons.person,
+                    size: 16,
+                    color: Color(0xFF2ECC71),
+                  ),
+                ),
+            ],
+          ),
+          if (detectedIngredients != null &&
+              detectedIngredients!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 40),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
                 children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      message,
+                  ActionChip(
+                    avatar: Icon(
+                      Icons.check_circle_outline,
+                      size: 16,
+                      color: actionTaken ? Colors.grey.shade500 : Colors.white,
+                    ),
+                    label: Text(
+                      'Confirmar',
                       style: TextStyle(
-                        color: isUser ? Colors.white : Colors.black87,
-                        fontSize: 15,
+                        color:
+                            actionTaken ? Colors.grey.shade500 : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
+                    backgroundColor: actionTaken
+                        ? Colors.grey.shade200
+                        : const Color(0xFF2ECC71),
+                    onPressed: actionTaken ? null : onConfirm,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    time,
-                    style: TextStyle(
-                      color: isUser ? Colors.white70 : Colors.grey,
-                      fontSize: 10,
+                  ActionChip(
+                    avatar: Icon(
+                      Icons.edit_outlined,
+                      size: 16,
+                      color: actionTaken
+                          ? Colors.grey.shade500
+                          : const Color(0xFF27AE60),
                     ),
+                    label: Text(
+                      'Editar',
+                      style: TextStyle(
+                        color: actionTaken
+                            ? Colors.grey.shade500
+                            : const Color(0xFF27AE60),
+                        fontSize: 12,
+                      ),
+                    ),
+                    backgroundColor: actionTaken
+                        ? Colors.grey.shade100
+                        : const Color(0xFFE8F8F0),
+                    side: BorderSide(
+                      color: actionTaken
+                          ? Colors.grey.shade300
+                          : const Color(0xFF2ECC71),
+                    ),
+                    onPressed: actionTaken ? null : onEdit,
                   ),
                 ],
               ),
             ),
-          ),
-          if (isUser) const SizedBox(width: 8),
-          if (isUser)
-            const CircleAvatar(
-              backgroundColor: Color(0xFFFDFBF7),
-              radius: 16,
-              child: Icon(
-                Icons.person,
-                size: 16,
-                color: Color(0xFF2ECC71),
-              ),
-            ),
+          ],
         ],
       ),
     );
@@ -575,7 +844,11 @@ class _ChatBubble extends StatelessWidget {
 // ================================================================
 
 class _TypingBubble extends StatelessWidget {
-  const _TypingBubble();
+  final String text;
+
+  const _TypingBubble({
+    this.text = 'Amelia está pensando...',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -602,10 +875,10 @@ class _TypingBubble extends StatelessWidget {
               ),
             ],
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
+              const SizedBox(
                 width: 14,
                 height: 14,
                 child: CircularProgressIndicator(
@@ -613,12 +886,14 @@ class _TypingBubble extends StatelessWidget {
                   color: Color(0xFF2ECC71),
                 ),
               ),
-              SizedBox(width: 10),
-              Text(
-                'Amelia está pensando...',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 13,
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],
