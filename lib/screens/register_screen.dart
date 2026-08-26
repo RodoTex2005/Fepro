@@ -131,6 +131,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'fechaRegistro': FieldValue.serverTimestamp(),
         'nivel': 1,
         'experiencia': 0,
+
+        // Estadísticas
+        'recetasGeneradas': 0,
+        'recetasPublicadas': 0,
+        'recetasGuardadas': 0,
+        'likesRecibidos': 0,
+        'likesDados': 0,
+
+        // Marcos
+        'marcoSeleccionado': 'classic',
+        'marcosDesbloqueados': ['classic'],
       });
 
       print('DOCUMENTO CREADO EN USUARIOS');

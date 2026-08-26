@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'step_by_step_screen.dart';
 import '/services/deepseek_service.dart';
@@ -92,179 +93,231 @@ class _ChatScreenState extends State<ChatScreen> {
   // ============================================================
 
   Future<void> _sendMessage({String? customText}) async {
-    final text = (customText ?? _controller.text).trim();
+  final text = (customText ?? _controller.text).trim();
 
-    if (text.isEmpty || _isLoading) return;
+  if (text.isEmpty || _isLoading) return;
 
-    setState(() {
-      messages.add({
-        'text': text,
-        'isUser': true,
-        'time': _getCurrentTime(),
-      });
-      _isLoading = true;
-      _loadingText = 'Amelia está pensando...';
+  setState(() {
+    messages.add({
+      'text': text,
+      'isUser': true,
+      'time': _getCurrentTime(),
     });
+    _isLoading = true;
+    _loadingText = 'Amelia está pensando...';
+  });
 
-    if (customText == null) {
-      _controller.clear();
+  if (customText == null) {
+    _controller.clear();
+  }
+
+  _scrollToBottom();
+
+  try {
+    // ============================================================
+    // PREPARAR PROMPTS E HISTORIAL DEL CHAT
+    // ============================================================
+
+    final List<Map<String, String>> promptMessages = [
+      {'role': 'system', 'content': ameliaPrompt},
+      {'role': 'system', 'content': enginePrompt},
+      {'role': 'system', 'content': recipePrompt},
+    ];
+
+    for (final msg in messages) {
+      final msgText = msg['text'] as String?;
+      final isUser = msg['isUser'] as bool? ?? false;
+
+      if (msgText != null &&
+          msgText.isNotEmpty &&
+          msg['isRecipe'] != true) {
+        promptMessages.add({
+          'role': isUser ? 'user' : 'assistant',
+          'content': msgText,
+        });
+      }
     }
-    _scrollToBottom();
+
+    // ============================================================
+    // ENVIAR MENSAJE A DEEPSEEK
+    // ============================================================
+
+    final response = await _deepSeekService.sendMessage(
+      messages: promptMessages,
+    );
+
+    debugPrint('========== RESPUESTA DE DEEPSEEK ==========');
+    debugPrint(response);
+    debugPrint('============================================');
+
+    // ============================================================
+    // LIMPIAR POSIBLES BLOQUES DE MARKDOWN
+    // ============================================================
+
+    String cleanResponse = response.trim();
+
+    cleanResponse = cleanResponse
+        .replaceAll('```json', '')
+        .replaceAll('```JSON', '')
+        .replaceAll('```', '')
+        .trim();
+
+    // ============================================================
+    // ENCONTRAR EL JSON
+    // ============================================================
+
+    final firstBrace = cleanResponse.indexOf('{');
+    final lastBrace = cleanResponse.lastIndexOf('}');
+
+    if (firstBrace != -1 && lastBrace != -1) {
+      cleanResponse =
+          cleanResponse.substring(firstBrace, lastBrace + 1).trim();
+    }
+
+    debugPrint('========== JSON LIMPIO ==========');
+    debugPrint(cleanResponse);
+    debugPrint('=================================');
+
+    // ============================================================
+    // INTENTAR CONVERTIR A JSON
+    // ============================================================
+
+    dynamic data;
 
     try {
-      // Incluimos prompts del sistema e historial reciente del chat
-      final List<Map<String, String>> promptMessages = [
-        {'role': 'system', 'content': ameliaPrompt},
-        {'role': 'system', 'content': enginePrompt},
-        {'role': 'system', 'content': recipePrompt},
-      ];
+      data = jsonDecode(cleanResponse);
+    } catch (e) {
+      debugPrint('ERROR JSON: $e');
+      data = null;
+    }
 
-      for (final msg in messages) {
-        final msgText = msg['text'] as String?;
-        final isUser = msg['isUser'] as bool? ?? false;
-        if (msgText != null && msgText.isNotEmpty && msg['isRecipe'] != true) {
-          promptMessages.add({
-            'role': isUser ? 'user' : 'assistant',
-            'content': msgText,
-          });
-        }
+    // ============================================================
+    // SI ES UNA RECETA
+    // ============================================================
+
+    if (data is Map<String, dynamic> &&
+        data['type']?.toString().toLowerCase() == 'recipe') {
+      final recipe = {
+        'type': 'recipe',
+        'name': data['name']?.toString() ?? 'Receta de Amelia',
+        'description': data['description']?.toString() ?? '',
+        'servings': data['servings'],
+        'time': data['time']?.toString() ?? '',
+        'difficulty': data['difficulty']?.toString() ?? '',
+        'ingredients': data['ingredients'] is List
+            ? List<String>.from(
+                data['ingredients'].map((e) => e.toString()),
+              )
+            : <String>[],
+        'optionalIngredients': data['optionalIngredients'] is List
+            ? List<String>.from(
+                data['optionalIngredients'].map((e) => e.toString()),
+              )
+            : <String>[],
+        'preparation': data['preparation'] is List
+            ? List<String>.from(
+                data['preparation'].map((e) => e.toString()),
+              )
+            : <String>[],
+        'advice': data['advice']?.toString() ?? '',
+        'finalMessage': data['finalMessage']?.toString() ?? '',
+      };
+
+      debugPrint('========== RECETA DETECTADA ==========');
+      debugPrint(recipe.toString());
+      debugPrint('======================================');
+
+      // ============================================================
+      // GUARDAR RECETA EN FIRESTORE Y OBTENER SU ID
+      // ============================================================
+
+      final recetaId = await _registerGeneratedRecipe(recipe);
+
+      if (recetaId == null) {
+        debugPrint(
+          '⚠️ No se pudo obtener el ID de la receta.',
+        );
+      } else {
+        debugPrint(
+          'ID DIRECTO DE LA RECETA: $recetaId',
+        );
       }
 
-      final response = await _deepSeekService.sendMessage(
-        messages: promptMessages,
+      // ============================================================
+      // ASOCIAR EL ID A LA RECETA QUE MOSTRAMOS EN EL CHAT
+      // ============================================================
+
+      recipe['recetaId'] = recetaId;
+
+      debugPrint(
+        'Receta preparada para el botón Guardar con ID: '
+        '${recipe['recetaId']}',
       );
 
-      debugPrint('========== RESPUESTA DE DEEPSEEK ==========');
-      debugPrint(response);
-      debugPrint('============================================');
+      // ============================================================
+      // MOSTRAR RECETA EN EL CHAT
+      // ============================================================
 
-      // ------------------------------------------------------------
-      // LIMPIAR POSIBLES BLOQUES DE MARKDOWN
-      // ------------------------------------------------------------
-
-      String cleanResponse = response.trim();
-
-      cleanResponse = cleanResponse
-          .replaceAll('```json', '')
-          .replaceAll('```JSON', '')
-          .replaceAll('```', '')
-          .trim();
-
-      // ------------------------------------------------------------
-      // INTENTAR ENCONTRAR EL JSON
-      // ------------------------------------------------------------
-
-      final firstBrace = cleanResponse.indexOf('{');
-      final lastBrace = cleanResponse.lastIndexOf('}');
-
-      if (firstBrace != -1 && lastBrace != -1) {
-        cleanResponse =
-            cleanResponse.substring(firstBrace, lastBrace + 1).trim();
-      }
-
-      debugPrint('========== JSON LIMPIO ==========');
-      debugPrint(cleanResponse);
-      debugPrint('=================================');
-
-      dynamic data;
-
-      try {
-        data = jsonDecode(cleanResponse);
-      } catch (e) {
-        debugPrint('ERROR JSON: $e');
-        data = null;
-      }
-
-      // ------------------------------------------------------------
-      // SI ES UNA RECETA
-      // ------------------------------------------------------------
-
-      if (data is Map<String, dynamic> &&
-          data['type']?.toString().toLowerCase() == 'recipe') {
-        final recipe = {
-          'type': 'recipe',
-          'name': data['name']?.toString() ?? 'Receta de Amelia',
-          'description': data['description']?.toString() ?? '',
-          'servings': data['servings'],
-          'time': data['time']?.toString() ?? '',
-          'difficulty': data['difficulty']?.toString() ?? '',
-          'ingredients': data['ingredients'] is List
-              ? List<String>.from(
-                  data['ingredients'].map((e) => e.toString()),
-                )
-              : <String>[],
-          'optionalIngredients': data['optionalIngredients'] is List
-              ? List<String>.from(
-                  data['optionalIngredients'].map((e) => e.toString()),
-                )
-              : <String>[],
-          'preparation': data['preparation'] is List
-              ? List<String>.from(
-                  data['preparation'].map((e) => e.toString()),
-                )
-              : <String>[],
-          'advice': data['advice']?.toString() ?? '',
-          'finalMessage': data['finalMessage']?.toString() ?? '',
-        };
-
-        debugPrint('========== RECETA DETECTADA ==========');
-        debugPrint(recipe.toString());
-        debugPrint('======================================');
-
-        setState(() {
-          // Mensaje final de Amelia
-          if ((recipe['finalMessage'] as String).isNotEmpty) {
-            messages.add({
-              'text': recipe['finalMessage'],
-              'isUser': false,
-              'time': _getCurrentTime(),
-            });
-          }
-
-          // Tarjeta visual de receta
+      setState(() {
+        // Mensaje final de Amelia
+        if ((recipe['finalMessage'] as String).isNotEmpty) {
           messages.add({
-            'text': '',
-            'isUser': false,
-            'isRecipe': true,
-            'time': _getCurrentTime(),
-            'recipeData': recipe,
-          });
-        });
-      } else {
-        // ----------------------------------------------------------
-        // NO ES RECETA
-        // ----------------------------------------------------------
-
-        debugPrint('La respuesta NO fue reconocida como receta.');
-
-        setState(() {
-          messages.add({
-            'text': response,
+            'text': recipe['finalMessage'],
             'isUser': false,
             'time': _getCurrentTime(),
           });
+        }
+
+        // Tarjeta visual de receta
+        messages.add({
+          'text': '',
+          'isUser': false,
+          'isRecipe': true,
+          'time': _getCurrentTime(),
+          'recipeData': recipe,
         });
-      }
-    } catch (e) {
-      debugPrint('Error al procesar respuesta: $e');
+      });
+    } else {
+      // ============================================================
+      // NO ES RECETA
+      // ============================================================
+
+      debugPrint(
+        'La respuesta NO fue reconocida como receta.',
+      );
 
       setState(() {
         messages.add({
-          'text':
-              'Lo siento, tuve un pequeño problema al preparar la respuesta. 😅 ¿Podemos intentarlo de nuevo?',
+          'text': response,
           'isUser': false,
           'time': _getCurrentTime(),
         });
       });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        _scrollToBottom();
-      }
+    }
+  } catch (e) {
+    debugPrint(
+      'Error al procesar respuesta: $e',
+    );
+
+    setState(() {
+      messages.add({
+        'text':
+            'Lo siento, tuve un pequeño problema al preparar la respuesta. 😅 '
+            '¿Podemos intentarlo de nuevo?',
+        'isUser': false,
+        'time': _getCurrentTime(),
+      });
+    });
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      _scrollToBottom();
     }
   }
+}
 
   // ============================================================
   // MODO COCINAR
@@ -287,57 +340,156 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+  Future<String?> _registerGeneratedRecipe(
+  Map<String, dynamic> recipe,
+) async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
 
+    if (user == null) {
+      debugPrint('No hay usuario autenticado. No se guardará la receta.');
+      return null;
+    }
+
+    final recetaRef =
+        await FirebaseFirestore.instance.collection('recetas').add({
+      'uid': user.uid,
+      'nombre': recipe['name'] ?? 'Receta de Amelia',
+      'descripcion': recipe['description'] ?? '',
+      'servings': recipe['servings'],
+      'time': recipe['time'] ?? '',
+      'difficulty': recipe['difficulty'] ?? '',
+      'ingredients': List<String>.from(
+        recipe['ingredients'] ?? [],
+      ),
+      'optionalIngredients': List<String>.from(
+        recipe['optionalIngredients'] ?? [],
+      ),
+      'preparation': List<String>.from(
+        recipe['preparation'] ?? [],
+      ),
+      'advice': recipe['advice'] ?? '',
+      'finalMessage': recipe['finalMessage'] ?? '',
+      'fechaCreacion': FieldValue.serverTimestamp(),
+    });
+
+    debugPrint(
+      'Receta guardada correctamente en Firestore: ${recetaRef.id}',
+    );
+
+    await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(user.uid)
+        .update({
+      'recetasGeneradas': FieldValue.increment(1),
+    });
+
+    debugPrint('Contador recetasGeneradas actualizado.');
+
+    return recetaRef.id;
+  } catch (e) {
+    debugPrint('ERROR AL GUARDAR RECETA GENERADA: $e');
+    return null;
+  }
+}
   // ============================================================
   // GUARDAR RECETA
   // ============================================================
 
   Future<void> _saveRecipe(Map<String, dynamic> recipe) async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? recipesJson = prefs.getString('saved_recipes');
+  try {
+    final user = FirebaseAuth.instance.currentUser;
 
-    List<Map<String, dynamic>> savedRecipes = [];
-
-    if (recipesJson != null) {
-      savedRecipes = List<Map<String, dynamic>>.from(
-        json.decode(recipesJson),
-      );
+    if (user == null) {
+      debugPrint('No hay usuario autenticado.');
+      return;
     }
 
-    final exists = savedRecipes.any(
-      (r) => r['name'] == recipe['name'],
-    );
+    // ============================================================
+    // OBTENER ID DIRECTO DE LA RECETA
+    // ============================================================
 
-    if (exists) {
+    final recetaId = recipe['recetaId'];
+
+    if (recetaId == null || recetaId.toString().isEmpty) {
+      debugPrint('ERROR: La receta no tiene recetaId.');
+      return;
+    }
+
+    debugPrint('Guardando receta con ID directo: $recetaId');
+
+    // ============================================================
+    // COMPROBAR SI YA ESTÁ GUARDADA
+    // ============================================================
+
+    final guardadaQuery = await FirebaseFirestore.instance
+        .collection('recetas_guardadas')
+        .where('uid', isEqualTo: user.uid)
+        .where('recetaId', isEqualTo: recetaId)
+        .limit(1)
+        .get();
+
+    if (guardadaQuery.docs.isNotEmpty) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('⚠️ Esta receta ya está en favoritos'),
           backgroundColor: Color(0xFFF39C12),
         ),
       );
+
       return;
     }
 
-    savedRecipes.add({
-      'name': recipe['name'],
-      'ingredients': recipe['ingredients'],
-      'instructions': recipe['preparation'],
+    // ============================================================
+    // GUARDAR RELACIÓN USUARIO → RECETA
+    // ============================================================
+
+    await FirebaseFirestore.instance
+        .collection('recetas_guardadas')
+        .add({
+      'uid': user.uid,
+      'recetaId': recetaId,
+      'fechaGuardado': FieldValue.serverTimestamp(),
     });
 
-    await prefs.setString(
-      'saved_recipes',
-      json.encode(savedRecipes),
-    );
+    debugPrint('Receta guardada en favoritos correctamente.');
+
+    // ============================================================
+    // ACTUALIZAR CONTADOR DEL USUARIO
+    // ============================================================
+
+    await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(user.uid)
+        .update({
+      'recetasGuardadas': FieldValue.increment(1),
+    });
+
+    debugPrint('Contador recetasGuardadas actualizado.');
 
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('❤️ Receta guardada en favoritos'),
         backgroundColor: Color(0xFF2ECC71),
       ),
     );
+  } catch (e) {
+    debugPrint('ERROR AL GUARDAR RECETA EN FAVORITOS: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('❌ No se pudo guardar la receta: $e'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
 
   // ============================================================
   // HORA ACTUAL

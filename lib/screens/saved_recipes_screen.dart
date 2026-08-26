@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'recipe_screen.dart';
 
 class SavedRecipesScreen extends StatefulWidget {
@@ -20,25 +20,110 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
   }
 
   Future<void> _loadSavedRecipes() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? recipesJson = prefs.getString('saved_recipes');
-    if (recipesJson != null) {
-      final List<dynamic> decoded = json.decode(recipesJson);
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      debugPrint('No hay usuario autenticado.');
+      return;
+    }
+
+    debugPrint('Cargando recetas favoritas de: ${user.uid}');
+
+    final guardadasSnapshot = await FirebaseFirestore.instance
+        .collection('recetas_guardadas')
+        .where('uid', isEqualTo: user.uid)
+        .get();
+
+    debugPrint(
+      'RECETAS GUARDADAS ENCONTRADAS: ${guardadasSnapshot.docs.length}',
+    );
+
+    List<Map<String, dynamic>> recetas = [];
+
+    for (final doc in guardadasSnapshot.docs) {
+      final dataGuardada = doc.data();
+      final recetaId = dataGuardada['recetaId'];
+
+      if (recetaId == null) continue;
+
+      final recetaDoc = await FirebaseFirestore.instance
+          .collection('recetas')
+          .doc(recetaId)
+          .get();
+
+      if (recetaDoc.exists) {
+        final data = recetaDoc.data()!;
+
+        recetas.add({
+          'id': recetaDoc.id,
+          'name': data['nombre'] ?? 'Receta sin nombre',
+          'description': data['descripcion'] ?? '',
+          'ingredients': List<String>.from(
+            data['ingredients'] ?? [],
+          ),
+          'instructions': List<String>.from(
+            data['preparation'] ?? [],
+          ),
+        });
+      }
+    }
+
+    if (mounted) {
       setState(() {
-        savedRecipes = decoded
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
+        savedRecipes = recetas;
       });
     }
+
+    debugPrint(
+      'RECETAS FAVORITAS CARGADAS: ${savedRecipes.length}',
+    );
+  } catch (e) {
+    debugPrint('ERROR AL CARGAR RECETAS FAVORITAS: $e');
   }
+}
 
   Future<void> _removeRecipe(int index) async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      debugPrint('No hay usuario autenticado.');
+      return;
+    }
+
+    final recipe = savedRecipes[index];
+    final recipeId = recipe['id'];
+
+    if (recipeId == null) {
+      debugPrint('La receta no tiene ID de Firestore.');
+      return;
+    }
+
+    await FirebaseFirestore.instance
+        .collection('recetas')
+        .doc(recipeId)
+        .update({
+      'guardada': false,
+    });
+
+    await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(user.uid)
+        .update({
+      'recetasGuardadas': FieldValue.increment(-1),
+    });
+
     setState(() {
       savedRecipes.removeAt(index);
     });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('saved_recipes', json.encode(savedRecipes));
+
+    debugPrint('Receta eliminada de favoritos correctamente.');
+    debugPrint('Contador recetasGuardadas actualizado.');
+  } catch (e) {
+    debugPrint('ERROR AL ELIMINAR RECETA FAVORITA: $e');
   }
+}
 
   void _shareRecipe(Map<String, dynamic> recipe) {
     ScaffoldMessenger.of(context).showSnackBar(
