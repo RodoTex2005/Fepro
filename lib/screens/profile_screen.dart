@@ -95,6 +95,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _cargarEstadisticas();
   }
 
+  // ============================================================
+  // CARGAR ESTADÍSTICAS
+  // ============================================================
+
   Future<void> _cargarEstadisticas() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -111,6 +115,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       print('Cargando estadísticas del usuario: ${user.uid}');
+
+      // ============================================================
+      // OBTENER DATOS DEL USUARIO
+      // ============================================================
 
       final documento = await FirebaseFirestore.instance
           .collection('usuarios')
@@ -132,6 +140,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       print('Datos encontrados: $datos');
 
+      // ============================================================
+      // CONTAR RECETAS GUARDADAS REALES
+      // ============================================================
+
+      final recetasGuardadasQuery = await FirebaseFirestore.instance
+          .collection('recetas_guardadas')
+          .where('uid', isEqualTo: user.uid)
+          .get();
+
+      final cantidadRecetasGuardadas =
+          recetasGuardadasQuery.docs.length;
+
+      print(
+        'Recetas guardadas reales encontradas: '
+        '$cantidadRecetasGuardadas',
+      );
+
+      // ============================================================
+      // ACTUALIZAR ESTADÍSTICAS EN PANTALLA
+      // ============================================================
+
       if (mounted) {
         setState(() {
           nombreUsuario = datos['usuario'] ?? 'Usuario';
@@ -139,10 +168,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           recetasGeneradas = datos['recetasGeneradas'] ?? 0;
           likesTotales = datos['likesRecibidos'] ?? 0;
-          recetasGuardadas = datos['recetasGuardadas'] ?? 0;
+
+          // Se utiliza la cantidad REAL de documentos
+          // existentes en recetas_guardadas.
+          recetasGuardadas = cantidadRecetasGuardadas;
 
           _cargandoEstadisticas = false;
         });
+      }
+
+      // ============================================================
+      // SINCRONIZAR CONTADOR EN USUARIOS
+      // ============================================================
+
+      if (datos['recetasGuardadas'] != cantidadRecetasGuardadas) {
+        await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .update({
+          'recetasGuardadas': cantidadRecetasGuardadas,
+        });
+
+        print(
+          'Contador recetasGuardadas sincronizado: '
+          '$cantidadRecetasGuardadas',
+        );
       }
     } catch (e) {
       print('ERROR AL CARGAR ESTADÍSTICAS: $e');
@@ -155,12 +205,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // ============================================================
+  // CARGAR MEDALLAS
+  // ============================================================
+
   Future<void> _loadBadges() async {
     final prefs = await SharedPreferences.getInstance();
     final String? badgesJson = prefs.getString('user_badges');
 
     if (badgesJson != null) {
-      final List<String> badges = List<String>.from(json.decode(badgesJson));
+      final List<String> badges =
+          List<String>.from(json.decode(badgesJson));
+
+      if (!mounted) return;
 
       setState(() {
         userBadges = badges;
@@ -174,14 +231,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // ============================================================
+  // CARGAR DATOS DEL USUARIO
+  // ============================================================
+
   Future<void> _loadUserData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
-        setState(() {
-          _isLoadingUser = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoadingUser = false;
+          });
+        }
         return;
       }
 
@@ -189,6 +252,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .collection('usuarios')
           .doc(user.uid)
           .get();
+
+      if (!mounted) return;
 
       if (document.exists) {
         setState(() {
@@ -203,22 +268,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       print('ERROR AL CARGAR USUARIO: $e');
 
-      setState(() {
-        _isLoadingUser = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingUser = false;
+        });
+      }
     }
   }
+
+  // ============================================================
+  // CARGAR MARCO SELECCIONADO
+  // ============================================================
 
   Future<void> _loadSelectedFrame() async {
     final prefs = await SharedPreferences.getInstance();
     final String? frame = prefs.getString('selected_frame');
 
-    if (frame != null) {
+    if (frame != null && mounted) {
       setState(() {
         selectedFrame = frame;
       });
     }
   }
+
+  // ============================================================
+  // DECORACIÓN DEL AVATAR
+  // ============================================================
 
   BoxDecoration _getAvatarDecoration() {
     final frame =
@@ -251,6 +326,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ============================================================
+  // INTERFAZ
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -262,7 +341,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: const Color(0xFFFFF8F0),
       body: ListView(
         children: [
-          // ===== HEADER =====
+          // ========================================================
+          // HEADER
+          // ========================================================
+
           Container(
             padding: const EdgeInsets.all(32),
             decoration: const BoxDecoration(
@@ -278,6 +360,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 20),
+
+                // ==================================================
+                // AVATAR
+                // ==================================================
 
                 Container(
                   padding: const EdgeInsets.all(6),
@@ -295,7 +381,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 const SizedBox(height: 16),
 
-                // ===== NOMBRE DEL USUARIO =====
+                // ==================================================
+                // NOMBRE
+                // ==================================================
+
                 Text(
                   nombreUsuario,
                   style: const TextStyle(
@@ -317,7 +406,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 const SizedBox(height: 4),
 
-                // ===== CORREO DEL USUARIO =====
+                // ==================================================
+                // CORREO
+                // ==================================================
+
                 Text(
                   correoUsuario,
                   style: const TextStyle(
@@ -328,7 +420,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 const SizedBox(height: 20),
 
-                // ===== ESTADÍSTICAS =====
+                // ==================================================
+                // ESTADÍSTICAS
+                // ==================================================
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -362,7 +457,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 8),
 
-          // ===== OPCIONES =====
+          // ========================================================
+          // OPCIONES
+          // ========================================================
+
           _ProfileOption(
             icon: Icons.palette,
             title: 'Personalizar Marco',
@@ -371,11 +469,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const SavedRecipesScreen(),
+                  builder: (_) => const FramesScreen(),
                 ),
               );
 
-              // Recargar estadísticas al regresar
+              // Recargar estadísticas al regresar.
               _cargarEstadisticas();
             },
           ),
@@ -384,13 +482,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.favorite,
             title: 'Mis Recetas Favoritas',
             iconColor: const Color(0xFFF39C12),
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => const SavedRecipesScreen(),
                 ),
               );
+
+              // Recargar estadísticas al regresar.
+              _cargarEstadisticas();
             },
           ),
 
@@ -438,7 +539,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 20),
 
-          // ===== CERRAR SESIÓN =====
+          // ========================================================
+          // CERRAR SESIÓN
+          // ========================================================
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: SizedBox(
@@ -500,7 +604,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ===== STAT ITEM =====
+// ================================================================
+// STAT ITEM
+// ================================================================
+
 class _StatItem extends StatelessWidget {
   final String label;
   final String value;
@@ -531,7 +638,10 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-// ===== PROFILE OPTION =====
+// ================================================================
+// PROFILE OPTION
+// ================================================================
+
 class _ProfileOption extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -563,7 +673,10 @@ class _ProfileOption extends StatelessWidget {
   }
 }
 
-// ===== BADGES SECTION =====
+// ================================================================
+// BADGES SECTION
+// ================================================================
+
 class _BadgesSection extends StatelessWidget {
   const _BadgesSection();
 
@@ -654,7 +767,10 @@ class _BadgesSection extends StatelessWidget {
   }
 }
 
-// ===== BADGE MODEL =====
+// ================================================================
+// BADGE MODEL
+// ================================================================
+
 class _Badge {
   final IconData icon;
   final String label;
@@ -669,7 +785,10 @@ class _Badge {
   });
 }
 
-// ===== BADGE ITEM =====
+// ================================================================
+// BADGE ITEM
+// ================================================================
+
 class _BadgeItem extends StatelessWidget {
   final _Badge badge;
 
