@@ -445,24 +445,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // ==================================================
 
                 Container(
-                  padding:
-                      const EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(6),
 
-                  decoration:
-                      _getAvatarDecoration(),
+                  decoration: _getAvatarDecoration(),
 
-                  child:
-                      const CircleAvatar(
+                  child: CircleAvatar(
                     radius: 50,
-                    backgroundColor:
-                        Colors.white,
+                    backgroundColor: Colors.white,
 
-                    child: Icon(
-                      Icons.person,
-                      size: 50,
-                      color:
-                          Color(0xFF2ECC71),
-                    ),
+                    backgroundImage:
+                        userData?['fotoPerfil'] != null &&
+                                userData!['fotoPerfil'].toString().isNotEmpty
+                            ? NetworkImage(
+                                userData!['fotoPerfil'].toString(),
+                              )
+                            : null,
+
+                    child:
+                        userData?['fotoPerfil'] == null ||
+                                userData!['fotoPerfil'].toString().isEmpty
+                            ? const Icon(
+                                Icons.person,
+                                size: 50,
+                                color: Color(0xFF2ECC71),
+                              )
+                            : null,
                   ),
                 ),
 
@@ -1115,6 +1122,9 @@ class AmeliaHistoryScreen
               final receta =
                   <String, dynamic>{
                 'id':
+                    documento.id,
+
+                'recetaId':
                     documento.id,
 
                 'uid':

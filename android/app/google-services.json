@@ -50,6 +50,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "187179912587-btnt1ep8ha0gnrrq7f8p8mi9qst763br.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.recetias2_app",
+            "certificate_hash": "e7c5ccf1550c1a68b9de70f1085a7d349165fff9"
+          }
+        },
+        {
           "client_id": "187179912587-heu5al5e22lrlbp0v4q9fu59gg0os2qq.apps.googleusercontent.com",
           "client_type": 3
         }

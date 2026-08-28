@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'step_by_step_screen.dart';
 
@@ -240,7 +244,8 @@ class _ForumScreenState extends State<ForumScreen> {
 
               final receta =
                   <String, dynamic>{
-                'id': documento.id,
+                 'id': documento.id,
+                'recetaId': documento.id,
 
                 'uid': uid,
 
@@ -299,6 +304,10 @@ class _ForumScreenState extends State<ForumScreen> {
 
                 'comentarios':
                     datos['comentarios'] ?? 0,
+
+                // FOTO FINAL DEL PLATILLO
+                'fotoPlatilloUrl':
+                    datos['fotoPlatilloUrl'] ?? '',
               };
 
               return Card(
@@ -334,6 +343,10 @@ class _ForumScreenState extends State<ForumScreen> {
                             .start,
 
                     children: [
+                      // ==================================================
+                      // USUARIO
+                      // ==================================================
+
                       Padding(
                         padding:
                             const EdgeInsets
@@ -429,38 +442,138 @@ class _ForumScreenState extends State<ForumScreen> {
                         ),
                       ),
 
-                      Container(
-                        height: 180,
+                      // ==================================================
+                      // FOTO FINAL DEL PLATILLO
+                      // ==================================================
 
-                        decoration:
-                            const BoxDecoration(
-                          gradient:
-                              LinearGradient(
-                            colors: [
-                              Color(
-                                0xFF2ECC71,
-                              ),
-                              Color(
-                                0xFF27AE60,
-                              ),
-                            ],
-                          ),
+                      ClipRRect(
+                        borderRadius:
+                            const BorderRadius.only(
+                          topLeft:
+                              Radius.circular(0),
+                          topRight:
+                              Radius.circular(0),
                         ),
 
-                        child: Center(
-                          child: Icon(
-                            Icons.restaurant,
+                        child:
+                            SizedBox(
+                          height: 180,
+                          width:
+                              double.infinity,
 
-                            size: 60,
+                          child:
+                              receta[
+                                          'fotoPlatilloUrl']
+                                      .toString()
+                                      .isNotEmpty
+                                  ? Image.network(
+                                      receta[
+                                              'fotoPlatilloUrl']
+                                          .toString(),
 
-                            color: Colors
-                                .white
-                                .withOpacity(
-                              0.8,
-                            ),
-                          ),
+                                      width:
+                                          double.infinity,
+
+                                      height:
+                                          180,
+
+                                      fit:
+                                          BoxFit.cover,
+
+                                      loadingBuilder:
+                                          (
+                                        context,
+                                        child,
+                                        loadingProgress,
+                                      ) {
+                                        if (loadingProgress ==
+                                            null) {
+                                          return child;
+                                        }
+
+                                        return const Center(
+                                          child:
+                                              CircularProgressIndicator(
+                                            color:
+                                                Color(
+                                              0xFF2ECC71,
+                                            ),
+                                          ),
+                                        );
+                                      },
+
+                                      errorBuilder:
+                                          (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) {
+                                        return Container(
+                                          decoration:
+                                              const BoxDecoration(
+                                            gradient:
+                                                LinearGradient(
+                                              colors: [
+                                                Color(
+                                                  0xFF2ECC71,
+                                                ),
+                                                Color(
+                                                  0xFF27AE60,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+
+                                          child:
+                                              const Center(
+                                            child:
+                                                Icon(
+                                              Icons
+                                                  .broken_image,
+                                              size:
+                                                  60,
+                                              color:
+                                                  Colors.white,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : Container(
+                                      decoration:
+                                          const BoxDecoration(
+                                        gradient:
+                                            LinearGradient(
+                                          colors: [
+                                            Color(
+                                              0xFF2ECC71,
+                                            ),
+                                            Color(
+                                              0xFF27AE60,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+
+                                      child:
+                                          const Center(
+                                        child:
+                                            Icon(
+                                          Icons
+                                              .restaurant,
+                                          size:
+                                              60,
+                                          color:
+                                              Colors.white,
+                                        ),
+                                      ),
+                                    ),
                         ),
                       ),
+
+                      // ==================================================
+                      // INFORMACIÓN DE RECETA
+                      // ==================================================
 
                       Padding(
                         padding:
@@ -694,7 +807,13 @@ class _RecipeDetailScreenState
       _commentController =
       TextEditingController();
 
+  final ImagePicker _imagePicker =
+      ImagePicker();
+
   bool _enviandoComentario = false;
+
+  // Foto seleccionada para el comentario
+  File? _fotoComentario;
 
   // ============================================================
   // FORMATEAR FECHA
@@ -764,6 +883,230 @@ class _RecipeDetailScreenState
         .snapshots();
   }
 
+  // ============================================================
+  // MOSTRAR EMOJIS
+  // ============================================================
+
+  void _mostrarEmojis() {
+    final emojis = [
+      '😀',
+      '😂',
+      '😍',
+      '🥰',
+      '😋',
+      '🤤',
+      '😎',
+      '😭',
+      '😡',
+      '🤯',
+      '❤️',
+      '🔥',
+      '👏',
+      '👍',
+      '👎',
+      '🙌',
+      '💯',
+      '✨',
+      '🎉',
+      '🥳',
+      '🍕',
+      '🍔',
+      '🍗',
+      '🌮',
+      '🍰',
+      '🍪',
+      '☕',
+      '👩‍🍳',
+      '👨‍🍳',
+      '🥘',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape:
+          const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding:
+                const EdgeInsets.all(16),
+
+            child: GridView.builder(
+              shrinkWrap: true,
+
+              itemCount:
+                  emojis.length,
+
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 6,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+              ),
+
+              itemBuilder:
+                  (context, index) {
+                final emoji =
+                    emojis[index];
+
+                return InkWell(
+                  borderRadius:
+                      BorderRadius.circular(
+                    12,
+                  ),
+
+                  onTap: () {
+                    final textoActual =
+                        _commentController
+                            .text;
+
+                    _commentController
+                            .text =
+                        '$textoActual$emoji';
+
+                    _commentController
+                            .selection =
+                        TextSelection
+                            .fromPosition(
+                      TextPosition(
+                        offset:
+                            _commentController
+                                .text
+                                .length,
+                      ),
+                    );
+
+                    Navigator.pop(
+                      context,
+                    );
+                  },
+
+                  child: Center(
+                    child: Text(
+                      emoji,
+
+                      style:
+                          const TextStyle(
+                        fontSize: 30,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // TOMAR FOTO CON LA CÁMARA
+  // ============================================================
+
+  Future<void> _tomarFotoComentario() async {
+    try {
+      final XFile? imagen =
+          await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+      );
+
+      if (imagen == null) {
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _fotoComentario =
+            File(imagen.path);
+      });
+    } catch (e) {
+      debugPrint(
+        'ERROR AL TOMAR FOTO DEL COMENTARIO: $e',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            '❌ No se pudo abrir la cámara: $e',
+          ),
+          backgroundColor:
+              Colors.red,
+        ),
+      );
+    }
+  }
+
+  // ============================================================
+  // QUITAR FOTO SELECCIONADA
+  // ============================================================
+
+  void _quitarFotoComentario() {
+    setState(() {
+      _fotoComentario = null;
+    });
+  }
+
+  // ============================================================
+  // SUBIR FOTO DEL COMENTARIO
+  // ============================================================
+
+  Future<String?> _subirFotoComentario(
+    File foto,
+    String comentarioId,
+  ) async {
+    try {
+      final user =
+          FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        return null;
+      }
+
+      final referencia =
+          FirebaseStorage.instance
+              .ref()
+              .child(
+                'comentarios'
+                '/${widget.receta['id']}'
+                '/${user.uid}'
+                '/$comentarioId.jpg',
+              );
+
+      await referencia.putFile(foto);
+
+      final url =
+          await referencia.getDownloadURL();
+
+      return url;
+    } catch (e) {
+      debugPrint(
+        'ERROR AL SUBIR FOTO DEL COMENTARIO: $e',
+      );
+
+      rethrow;
+    }
+  }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
   @override
   void dispose() {
     _commentController.dispose();
@@ -814,10 +1157,6 @@ class _RecipeDetailScreenState
         return;
       }
 
-      // ==========================================================
-      // OBTENER UID DEL AUTOR DE LA RECETA
-      // ==========================================================
-
       final autorUid =
           widget.receta['uid']?.toString();
 
@@ -852,10 +1191,6 @@ class _RecipeDetailScreenState
       final likeSnapshot =
           await likeRef.get();
 
-      // ==========================================================
-      // QUITAR LIKE
-      // ==========================================================
-
       if (likeSnapshot.exists) {
         await likeRef.delete();
 
@@ -864,7 +1199,6 @@ class _RecipeDetailScreenState
               FieldValue.increment(-1),
         });
 
-        // Restar un like recibido al autor
         await autorRef.update({
           'likesRecibidos':
               FieldValue.increment(-1),
@@ -900,10 +1234,6 @@ class _RecipeDetailScreenState
         return;
       }
 
-      // ==========================================================
-      // DAR LIKE
-      // ==========================================================
-
       await likeRef.set({
         'uid': user.uid,
         'fechaLike':
@@ -915,7 +1245,6 @@ class _RecipeDetailScreenState
             FieldValue.increment(1),
       });
 
-      // Sumar un like recibido al autor
       await autorRef.update({
         'likesRecibidos':
             FieldValue.increment(1),
@@ -1015,7 +1344,21 @@ class _RecipeDetailScreenState
     final text =
         _commentController.text.trim();
 
-    if (text.isEmpty) {
+    // Permitimos comentario con:
+    // texto, emojis, foto o cualquier combinación.
+    if (text.isEmpty &&
+        _fotoComentario == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            '😊 Escribe algo, agrega un emoji o toma una foto',
+          ),
+          backgroundColor:
+              Color(0xFFF39C12),
+        ),
+      );
+
       return;
     }
 
@@ -1095,15 +1438,46 @@ class _RecipeDetailScreenState
           .collection('recetas')
           .doc(recetaId);
 
-      await recetaRef
-          .collection('comentarios')
-          .add({
+      // ========================================================
+      // CREAR PRIMERO EL COMENTARIO
+      // ========================================================
+
+      final comentarioRef =
+          recetaRef
+              .collection('comentarios')
+              .doc();
+
+      await comentarioRef.set({
         'uid': user.uid,
         'usuario': nombreUsuario,
         'texto': text,
+        'fotoUrl': '',
         'fechaComentario':
             FieldValue.serverTimestamp(),
       });
+
+      // ========================================================
+      // SUBIR FOTO SI EXISTE
+      // ========================================================
+
+      if (_fotoComentario != null) {
+        final fotoUrl =
+            await _subirFotoComentario(
+          _fotoComentario!,
+          comentarioRef.id,
+        );
+
+        if (fotoUrl != null &&
+            fotoUrl.isNotEmpty) {
+          await comentarioRef.update({
+            'fotoUrl': fotoUrl,
+          });
+        }
+      }
+
+      // ========================================================
+      // ACTUALIZAR CONTADOR
+      // ========================================================
 
       await recetaRef.update({
         'comentarios':
@@ -1115,6 +1489,7 @@ class _RecipeDetailScreenState
       if (!mounted) return;
 
       setState(() {
+        _fotoComentario = null;
         _enviandoComentario = false;
       });
 
@@ -1204,6 +1579,25 @@ class _RecipeDetailScreenState
         );
 
         return;
+      }
+
+      // ========================================================
+      // ELIMINAR FOTO DEL STORAGE SI EXISTE
+      // ========================================================
+
+      final fotoUrl =
+          datos?['fotoUrl']?.toString() ?? '';
+
+      if (fotoUrl.isNotEmpty) {
+        try {
+          await FirebaseStorage.instance
+              .refFromURL(fotoUrl)
+              .delete();
+        } catch (e) {
+          debugPrint(
+            'No se pudo eliminar la foto del Storage: $e',
+          );
+        }
       }
 
       await comentarioRef.delete();
@@ -1457,9 +1851,9 @@ class _RecipeDetailScreenState
 
           instructions:
               instrucciones,
-          
-          // Pasamos la receta completa
-          recipe: widget.receta
+
+          recipe:
+              widget.receta,
         ),
       ),
     );
@@ -1535,6 +1929,10 @@ class _RecipeDetailScreenState
                   CrossAxisAlignment.start,
 
               children: [
+                // ==================================================
+                // AUTOR
+                // ==================================================
+
                 Row(
                   children: [
                     CircleAvatar(
@@ -1601,6 +1999,68 @@ class _RecipeDetailScreenState
                 const SizedBox(
                   height: 16,
                 ),
+
+                // ==================================================
+                // FOTO FINAL EN DETALLE
+                // ==================================================
+
+                if (receta['fotoPlatilloUrl']
+                    .toString()
+                    .isNotEmpty)
+                  ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(
+                      16,
+                    ),
+
+                    child:
+                        Image.network(
+                      receta[
+                              'fotoPlatilloUrl']
+                          .toString(),
+
+                      width:
+                          double.infinity,
+
+                      height:
+                          230,
+
+                      fit:
+                          BoxFit.cover,
+
+                      errorBuilder:
+                          (
+                        context,
+                        error,
+                        stackTrace,
+                      ) {
+                        return Container(
+                          width:
+                              double.infinity,
+                          height:
+                              230,
+                          color:
+                              Colors.grey.shade200,
+                          child:
+                              const Icon(
+                            Icons
+                                .broken_image,
+                            size:
+                                60,
+                            color:
+                                Colors.grey,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                if (receta['fotoPlatilloUrl']
+                    .toString()
+                    .isNotEmpty)
+                  const SizedBox(
+                    height: 20,
+                  ),
 
                 Text(
                   receta['titulo'],
@@ -1750,6 +2210,10 @@ class _RecipeDetailScreenState
                 const SizedBox(
                   height: 24,
                 ),
+
+                // ==================================================
+                // BOTONES
+                // ==================================================
 
                 Row(
                   children: [
@@ -1973,6 +2437,10 @@ class _RecipeDetailScreenState
                   height: 8,
                 ),
 
+                // ==================================================
+                // COMENTARIOS
+                // ==================================================
+
                 StreamBuilder<
                     QuerySnapshot<
                         Map<String, dynamic>>>(
@@ -2064,6 +2532,11 @@ class _RecipeDetailScreenState
 
                           final texto =
                               datos['texto']
+                                      ?.toString() ??
+                                  '';
+
+                          final fotoUrl =
+                              datos['fotoUrl']
                                       ?.toString() ??
                                   '';
 
@@ -2177,6 +2650,10 @@ class _RecipeDetailScreenState
                                             .start,
 
                                     children: [
+                                      // ==================================================
+                                      // NOMBRE + OPCIONES
+                                      // ==================================================
+
                                       Row(
                                         children: [
                                           Expanded(
@@ -2277,17 +2754,178 @@ class _RecipeDetailScreenState
                                         height: 5,
                                       ),
 
-                                      Text(
-                                        texto,
+                                      // ==================================================
+                                      // TEXTO DEL COMENTARIO
+                                      // ==================================================
 
-                                        style:
-                                            const TextStyle(
-                                          fontSize:
-                                              14,
-                                          height:
-                                              1.4,
+                                      if (texto.isNotEmpty)
+                                        Text(
+                                          texto,
+
+                                          style:
+                                              const TextStyle(
+                                            fontSize:
+                                                14,
+                                            height:
+                                                1.4,
+                                          ),
                                         ),
-                                      ),
+
+                                      // ==================================================
+                                      // FOTO DEL COMENTARIO
+                                      // ==================================================
+
+                                      if (fotoUrl
+                                          .isNotEmpty)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets
+                                                  .only(
+                                            top:
+                                                8,
+                                          ),
+
+                                          child:
+                                              ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(
+                                              12,
+                                            ),
+
+                                            child:
+                                                GestureDetector(
+                                              onTap:
+                                                  () {
+                                                showDialog(
+                                                  context:
+                                                      context,
+
+                                                  builder:
+                                                      (_) =>
+                                                          Dialog(
+                                                    backgroundColor:
+                                                        Colors.transparent,
+
+                                                    child:
+                                                        InteractiveViewer(
+                                                      child:
+                                                          ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                          12,
+                                                        ),
+
+                                                        child:
+                                                            Image.network(
+                                                          fotoUrl,
+
+                                                          fit:
+                                                              BoxFit.contain,
+
+                                                          errorBuilder:
+                                                              (
+                                                            context,
+                                                            error,
+                                                            stackTrace,
+                                                          ) {
+                                                            return Container(
+                                                              height:
+                                                                  200,
+
+                                                              color:
+                                                                  Colors.white,
+
+                                                              child:
+                                                                  const Center(
+                                                                child:
+                                                                    Icon(
+                                                                  Icons.broken_image,
+                                                                  size:
+                                                                      50,
+                                                                  color:
+                                                                      Colors.grey,
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+
+                                              child:
+                                                  Image.network(
+                                                fotoUrl,
+
+                                                width:
+                                                    double.infinity,
+
+                                                height:
+                                                    200,
+
+                                                fit:
+                                                    BoxFit.cover,
+
+                                                loadingBuilder:
+                                                    (
+                                                  context,
+                                                  child,
+                                                  loadingProgress,
+                                                ) {
+                                                  if (loadingProgress ==
+                                                      null) {
+                                                    return child;
+                                                  }
+
+                                                  return const SizedBox(
+                                                    height:
+                                                        200,
+
+                                                    child:
+                                                        Center(
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        color:
+                                                            Color(
+                                                          0xFF2ECC71,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+
+                                                errorBuilder:
+                                                    (
+                                                  context,
+                                                  error,
+                                                  stackTrace,
+                                                ) {
+                                                  return Container(
+                                                    height:
+                                                        200,
+
+                                                    color:
+                                                        Colors.grey.shade200,
+
+                                                    child:
+                                                        const Center(
+                                                      child:
+                                                          Icon(
+                                                        Icons.broken_image,
+                                                        size:
+                                                            50,
+                                                        color:
+                                                            Colors.grey,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -2304,14 +2942,203 @@ class _RecipeDetailScreenState
                   height: 8,
                 ),
 
+                // ==================================================
+                // VISTA PREVIA DE FOTO
+                // ==================================================
+
+                if (_fotoComentario != null)
+                  Container(
+                    width:
+                        double.infinity,
+
+                    margin:
+                        const EdgeInsets.only(
+                      bottom: 10,
+                    ),
+
+                    padding:
+                        const EdgeInsets.all(
+                      8,
+                    ),
+
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          Colors.white,
+
+                      borderRadius:
+                          BorderRadius.circular(
+                        12,
+                      ),
+
+                      boxShadow: const [
+                        BoxShadow(
+                          color:
+                              Colors.black12,
+                          blurRadius:
+                              4,
+                          offset:
+                              Offset(
+                            0,
+                            2,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius:
+                              BorderRadius.circular(
+                            10,
+                          ),
+
+                          child:
+                              Image.file(
+                            _fotoComentario!,
+
+                            width:
+                                double.infinity,
+
+                            height:
+                                180,
+
+                            fit:
+                                BoxFit.cover,
+                          ),
+                        ),
+
+                        Positioned(
+                          top: 8,
+                          right: 8,
+
+                          child:
+                              Container(
+                            decoration:
+                                const BoxDecoration(
+                              color:
+                                  Colors.black54,
+
+                              shape:
+                                  BoxShape.circle,
+                            ),
+
+                            child:
+                                IconButton(
+                              icon:
+                                  const Icon(
+                                Icons.close,
+                                color:
+                                    Colors.white,
+                              ),
+
+                              onPressed:
+                                  _quitarFotoComentario,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // ==================================================
+                // ESCRIBIR COMENTARIO
+                // ==================================================
+
                 Row(
                   crossAxisAlignment:
-                      CrossAxisAlignment
-                          .end,
+                      CrossAxisAlignment.end,
 
                   children: [
+                    // ==================================================
+                    // EMOJIS
+                    // ==================================================
+
+                    Container(
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            Colors.white,
+
+                        borderRadius:
+                            BorderRadius.circular(
+                          12,
+                        ),
+                      ),
+
+                      child:
+                          IconButton(
+                        icon:
+                            const Text(
+                          '😊',
+
+                          style:
+                              TextStyle(
+                            fontSize:
+                                26,
+                          ),
+                        ),
+
+                        onPressed:
+                            _mostrarEmojis,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 6,
+                    ),
+
+                    // ==================================================
+                    // CÁMARA
+                    // ==================================================
+
+                    Container(
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            Colors.white,
+
+                        borderRadius:
+                            BorderRadius.circular(
+                          12,
+                        ),
+                      ),
+
+                      child:
+                          IconButton(
+                        icon:
+                            const Icon(
+                          Icons
+                              .camera_alt_outlined,
+
+                          color:
+                              Color(
+                            0xFF27AE60,
+                          ),
+
+                          size:
+                              25,
+                        ),
+
+                        onPressed:
+                            _enviandoComentario
+                                ? null
+                                : _tomarFotoComentario,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 6,
+                    ),
+
+                    // ==================================================
+                    // CAMPO DE COMENTARIO
+                    // ==================================================
+
                     Expanded(
-                      child: TextField(
+                      child:
+                          TextField(
                         controller:
                             _commentController,
 
@@ -2331,8 +3158,7 @@ class _RecipeDetailScreenState
                           border:
                               OutlineInputBorder(
                             borderRadius:
-                                BorderRadius
-                                    .circular(
+                                BorderRadius.circular(
                               12,
                             ),
 
@@ -2345,6 +3171,16 @@ class _RecipeDetailScreenState
 
                           fillColor:
                               Colors.white,
+
+                          contentPadding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal:
+                                14,
+
+                            vertical:
+                                12,
+                          ),
                         ),
                       ),
                     ),
@@ -2352,6 +3188,10 @@ class _RecipeDetailScreenState
                     const SizedBox(
                       width: 8,
                     ),
+
+                    // ==================================================
+                    // ENVIAR
+                    // ==================================================
 
                     Container(
                       decoration:
@@ -2374,10 +3214,12 @@ class _RecipeDetailScreenState
                                         20,
                                     height:
                                         20,
+
                                     child:
                                         CircularProgressIndicator(
                                       strokeWidth:
                                           2,
+
                                       color:
                                           Colors.white,
                                     ),

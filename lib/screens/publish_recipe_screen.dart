@@ -176,7 +176,8 @@ class _PublishRecipeScreenState
     // OBTENER ID DE RECETA
     // ----------------------------------------------------------
 
-    final recetaId = widget.recipe['recetaId'];
+    final recetaId = widget.recipe['recetaId'] ??
+    widget.recipe['id'];
 
     if (recetaId == null ||
         recetaId.toString().isEmpty) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class FramesScreen extends StatefulWidget {
   const FramesScreen({super.key});
@@ -11,7 +12,8 @@ class FramesScreen extends StatefulWidget {
 
 class _FramesScreenState extends State<FramesScreen> {
   String selectedFrame = 'classic';
-  List<String> userBadges = [];
+
+  bool _isLoading = true;
 
   final List<Map<String, dynamic>> availableFrames = [
     {
@@ -67,7 +69,10 @@ class _FramesScreenState extends State<FramesScreen> {
       'requirement': '100 recetas guardadas',
       'unlocked': false,
       'gradient': const LinearGradient(
-        colors: [Color(0xFFFFD700), Color(0xFFFF6B35)],
+        colors: [
+          Color(0xFFFFD700),
+          Color(0xFFFF6B35),
+        ],
       ),
     },
   ];
@@ -75,28 +80,31 @@ class _FramesScreenState extends State<FramesScreen> {
   @override
   void initState() {
     super.initState();
+
     _loadData();
   }
 
+  // ============================================================
+  // CARGAR DATOS
+  // ============================================================
+
   Future<void> _loadData() async {
+    await _loadSelectedFrame();
+
+    await _checkAchievements();
+  }
+
+  // ============================================================
+  // CARGAR MARCO SELECCIONADO
+  // ============================================================
+
+  Future<void> _loadSelectedFrame() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Cargar medallas
-    final String? badgesJson = prefs.getString('user_badges');
-    if (badgesJson != null) {
-      final List<String> badges = List<String>.from(json.decode(badgesJson));
-      setState(() {
-        userBadges = badges;
-        for (var frame in availableFrames) {
-          if (frame['id'] != 'classic') {
-            frame['unlocked'] = badges.contains(frame['id']);
-          }
-        }
-      });
-    }
-
-    // Cargar marco seleccionado
     final String? frame = prefs.getString('selected_frame');
+
+    if (!mounted) return;
+
     if (frame != null) {
       setState(() {
         selectedFrame = frame;
@@ -104,24 +112,436 @@ class _FramesScreenState extends State<FramesScreen> {
     }
   }
 
-  Future<void> _selectFrame(String frameId) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selected_frame', frameId);
+  // ============================================================
+  // COMPROBAR LOGROS AUTOMÁTICAMENTE
+  // ============================================================
+
+  Future<void> _checkAchievements() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+
+        return;
+      }
+
+      print(
+        'Comprobando logros para usuario: ${user.uid}',
+      );
+
+      // ========================================================
+      // OBTENER RECETAS DEL USUARIO
+      // ========================================================
+
+      final recetasSnapshot = await FirebaseFirestore.instance
+          .collection('recetas')
+          .where(
+            'uid',
+            isEqualTo: user.uid,
+          )
+          .get();
+
+      final recetas = recetasSnapshot.docs;
+
+      print(
+        'Recetas encontradas para logros: ${recetas.length}',
+      );
+
+      // ========================================================
+      // PRINCIPIANTE
+      // ========================================================
+
+      bool beginnerUnlocked = false;
+
+      for (final receta in recetas) {
+        final datos = receta.data();
+
+        if (datos['publicadaEnForo'] == true) {
+          beginnerUnlocked = true;
+          break;
+        }
+      }
+
+      // ========================================================
+      // RECETA ESTRELLA
+      // ========================================================
+
+      bool starUnlocked = false;
+
+      for (final receta in recetas) {
+        final datos = receta.data();
+
+        final likes = _getLikes(datos);
+
+        if (likes >= 50) {
+          starUnlocked = true;
+          break;
+        }
+      }
+
+      // ========================================================
+      // MAESTRO COCINERO
+      // ========================================================
+
+      int recetasCon30Likes = 0;
+
+      for (final receta in recetas) {
+        final datos = receta.data();
+
+        final likes = _getLikes(datos);
+
+        if (likes >= 30) {
+          recetasCon30Likes++;
+        }
+      }
+
+      final bool masterUnlocked =
+          recetasCon30Likes >= 5;
+
+      // ========================================================
+      // RECETAS GUARDADAS
+      // ========================================================
+
+      final recetasGuardadasSnapshot =
+          await FirebaseFirestore.instance
+              .collection('recetas_guardadas')
+              .where(
+                'uid',
+                isEqualTo: user.uid,
+              )
+              .get();
+
+      final int cantidadRecetasGuardadas =
+          recetasGuardadasSnapshot.docs.length;
+
+      print(
+        'Recetas guardadas: $cantidadRecetasGuardadas',
+      );
+
+      final bool championUnlocked =
+          cantidadRecetasGuardadas >= 100;
+
+      // ========================================================
+      // TENDENCIA
+      // ========================================================
+
+      final bool trendingUnlocked =
+          await _checkTrendingAchievement(
+        userUid: user.uid,
+      );
+
+      // ========================================================
+      // ACTUALIZAR ESTADO DE LOS MARCOS
+      // ========================================================
+
+      if (!mounted) return;
+
+      setState(() {
+        for (final frame in availableFrames) {
+          switch (frame['id']) {
+            case 'classic':
+              frame['unlocked'] = true;
+              break;
+
+            case 'beginner':
+              frame['unlocked'] = beginnerUnlocked;
+              break;
+
+            case 'star':
+              frame['unlocked'] = starUnlocked;
+              break;
+
+            case 'trending':
+              frame['unlocked'] = trendingUnlocked;
+              break;
+
+            case 'master':
+              frame['unlocked'] = masterUnlocked;
+              break;
+
+            case 'champion':
+              frame['unlocked'] = championUnlocked;
+              break;
+          }
+        }
+
+        _isLoading = false;
+      });
+
+      print('========================================');
+      print('LOGROS');
+      print('Principiante: $beginnerUnlocked');
+      print('Receta Estrella: $starUnlocked');
+      print('Tendencia: $trendingUnlocked');
+      print('Maestro Cocinero: $masterUnlocked');
+      print('Campeón: $championUnlocked');
+      print('========================================');
+
+      // ========================================================
+      // SEGURIDAD
+      // ========================================================
+      //
+      // Si por alguna razón el usuario tenía seleccionado
+      // un marco que ahora no está disponible, regresamos
+      // automáticamente al clásico.
+      //
+
+      final selectedIsUnlocked =
+          availableFrames.any(
+        (frame) =>
+            frame['id'] == selectedFrame &&
+            frame['unlocked'] == true,
+      );
+
+      if (!selectedIsUnlocked) {
+        await _selectFrame(
+          'classic',
+          mostrarMensaje: false,
+        );
+      }
+    } catch (e) {
+      print(
+        'ERROR AL COMPROBAR LOGROS: $e',
+      );
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // OBTENER LIKES
+  // ============================================================
+
+  int _getLikes(
+    Map<String, dynamic> datos,
+  ) {
+    final likes = datos['likes'];
+
+    if (likes is int) {
+      return likes;
+    }
+
+    if (likes is num) {
+      return likes.toInt();
+    }
+
+    return 0;
+  }
+
+  // ============================================================
+  // COMPROBAR TENDENCIA
+  // ============================================================
+
+  Future<bool> _checkTrendingAchievement({
+    required String userUid,
+  }) async {
+    try {
+      // --------------------------------------------------------
+      // FECHA ACTUAL
+      // --------------------------------------------------------
+
+      final ahora = DateTime.now();
+
+      // Calculamos el inicio de la semana.
+      //
+      // DateTime.monday = 1
+      // DateTime.sunday = 7
+      //
+
+      final inicioSemana = DateTime(
+        ahora.year,
+        ahora.month,
+        ahora.day,
+      ).subtract(
+        Duration(
+          days: ahora.weekday - DateTime.monday,
+        ),
+      );
+
+      final inicioSemanaTimestamp =
+          Timestamp.fromDate(
+        inicioSemana,
+      );
+
+      // --------------------------------------------------------
+      // OBTENER RECETAS PUBLICADAS ESTA SEMANA
+      // --------------------------------------------------------
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('recetas')
+          .where(
+            'publicadaEnForo',
+            isEqualTo: true,
+          )
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        return false;
+      }
+
+      int mayorCantidadLikes = 0;
+
+      String? usuarioConMasLikes;
+
+      for (final documento in snapshot.docs) {
+        final datos = documento.data();
+
+        // ------------------------------------------------------
+        // OBTENER FECHA
+        // ------------------------------------------------------
+
+        final fecha = _obtenerFecha(datos);
+
+        if (fecha == null) {
+          continue;
+        }
+
+        DateTime? fechaReceta;
+
+        if (fecha is Timestamp) {
+          fechaReceta = fecha.toDate();
+        } else if (fecha is DateTime) {
+          fechaReceta = fecha;
+        }
+
+        if (fechaReceta == null) {
+          continue;
+        }
+
+        // ------------------------------------------------------
+        // COMPROBAR QUE SEA DE ESTA SEMANA
+        // ------------------------------------------------------
+
+        if (fechaReceta.isBefore(inicioSemana)) {
+          continue;
+        }
+
+        // ------------------------------------------------------
+        // LIKES
+        // ------------------------------------------------------
+
+        final likes = _getLikes(datos);
+
+        if (likes > mayorCantidadLikes) {
+          mayorCantidadLikes = likes;
+
+          usuarioConMasLikes =
+              datos['uid']?.toString();
+        }
+      }
+
+      print(
+        'Mayor cantidad de likes esta semana: '
+        '$mayorCantidadLikes',
+      );
+
+      print(
+        'Usuario con más likes esta semana: '
+        '$usuarioConMasLikes',
+      );
+
+      // --------------------------------------------------------
+      // EL USUARIO ES EL GANADOR
+      // --------------------------------------------------------
+
+      return usuarioConMasLikes == userUid &&
+          mayorCantidadLikes > 0;
+    } catch (e) {
+      print(
+        'ERROR AL COMPROBAR TENDENCIA: $e',
+      );
+
+      return false;
+    }
+  }
+
+  // ============================================================
+  // OBTENER FECHA DE RECETA
+  // ============================================================
+
+  dynamic _obtenerFecha(
+    Map<String, dynamic> datos,
+  ) {
+    return datos['fechaPublicacionForo'] ??
+        datos['fechaCreacion'] ??
+        datos['fechaGeneracion'] ??
+        datos['fecha'] ??
+        datos['createdAt'];
+  }
+
+  // ============================================================
+  // SELECCIONAR MARCO
+  // ============================================================
+
+  Future<void> _selectFrame(
+    String frameId, {
+    bool mostrarMensaje = true,
+  }) async {
+    final frame = availableFrames.firstWhere(
+      (f) => f['id'] == frameId,
+    );
+
+    final bool isUnlocked =
+        frame['unlocked'] == true;
+
+    if (!isUnlocked) {
+      return;
+    }
+
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      'selected_frame',
+      frameId,
+    );
+
+    if (!mounted) return;
+
     setState(() {
       selectedFrame = frameId;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('✅ Marco seleccionado: ${_getFrameName(frameId)}'),
-        backgroundColor: const Color(0xFF2ECC71),
-      ),
-    );
+
+    if (mostrarMensaje) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '✅ Marco seleccionado: '
+            '${_getFrameName(frameId)}',
+          ),
+          backgroundColor:
+              const Color(0xFF2ECC71),
+        ),
+      );
+    }
   }
 
-  String _getFrameName(String frameId) {
-    final frame = availableFrames.firstWhere((f) => f['id'] == frameId);
+  // ============================================================
+  // NOMBRE DEL MARCO
+  // ============================================================
+
+  String _getFrameName(
+    String frameId,
+  ) {
+    final frame = availableFrames.firstWhere(
+      (f) => f['id'] == frameId,
+    );
+
     return frame['name'];
   }
+
+  // ============================================================
+  // INTERFAZ
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -129,198 +549,415 @@ class _FramesScreenState extends State<FramesScreen> {
       appBar: AppBar(
         title: const Text(
           '🎨 Personalizar Marco',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(
+            color: Colors.white,
+          ),
         ),
-        backgroundColor: const Color(0xFF2ECC71),
+        backgroundColor:
+            const Color(0xFF2ECC71),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back,
+            color: Colors.white,
+          ),
           onPressed: () {
             Navigator.pop(context);
           },
         ),
       ),
-      backgroundColor: const Color(0xFFFFF8F0),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Vista previa del avatar con el marco seleccionado
-            Center(
+      backgroundColor:
+          const Color(0xFFFFF8F0),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF2ECC71),
+              ),
+            )
+          : Padding(
+              padding:
+                  const EdgeInsets.all(16),
               child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Vista previa',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: _getFrameDecoration(selectedFrame),
-                    child: const CircleAvatar(
-                      radius: 50,
-                      backgroundColor: Colors.white,
-                      child: Icon(
-                        Icons.person,
-                        size: 50,
-                        color: Color(0xFF2ECC71),
-                      ),
+                  // ==================================================
+                  // VISTA PREVIA
+                  // ==================================================
+
+                  Center(
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Vista previa',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+
+                        const SizedBox(
+                          height: 8,
+                        ),
+
+                        Container(
+                          padding:
+                              const EdgeInsets.all(8),
+                          decoration:
+                              _getFrameDecoration(
+                            selectedFrame,
+                          ),
+                          child:
+                              const CircleAvatar(
+                            radius: 50,
+                            backgroundColor:
+                                Colors.white,
+                            child: Icon(
+                              Icons.person,
+                              size: 50,
+                              color: Color(
+                                0xFF2ECC71,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(
+                          height: 4,
+                        ),
+
+                        Text(
+                          'Marco: '
+                          '${_getFrameName(selectedFrame)}',
+                          style:
+                              const TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Marco: ${_getFrameName(selectedFrame)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+
+                  const SizedBox(
+                    height: 24,
+                  ),
+
+                  const Divider(),
+
+                  const SizedBox(
+                    height: 16,
+                  ),
+
+                  const Text(
+                    'Selecciona tu marco:',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight:
+                          FontWeight.bold,
+                      color:
+                          Color(0xFF27AE60),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 8,
+                  ),
+
+                  const Text(
+                    'Los marcos se desbloquean '
+                    'automáticamente al cumplir logros',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 14,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 16,
+                  ),
+
+                  // ==================================================
+                  // GRID
+                  // ==================================================
+
+                  Expanded(
+                    child:
+                        GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio:
+                            1.3,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                      ),
+
+                      itemCount:
+                          availableFrames.length,
+
+                      itemBuilder:
+                          (context, index) {
+                        final frame =
+                            availableFrames[
+                                index];
+
+                        final isSelected =
+                            selectedFrame ==
+                                frame['id'];
+
+                        final isUnlocked =
+                            frame['unlocked'] ??
+                                false;
+
+                        return GestureDetector(
+                          onTap: isUnlocked
+                              ? () =>
+                                  _selectFrame(
+                                    frame['id'],
+                                  )
+                              : null,
+
+                          child: Container(
+                            decoration:
+                                BoxDecoration(
+                              color:
+                                  Colors.white,
+
+                              borderRadius:
+                                  BorderRadius
+                                      .circular(
+                                16,
+                              ),
+
+                              border:
+                                  Border.all(
+                                color:
+                                    isSelected
+                                        ? const Color(
+                                            0xFF2ECC71,
+                                          )
+                                        : Colors
+                                            .grey
+                                            .withOpacity(
+                                            0.3,
+                                          ),
+                                width:
+                                    isSelected
+                                        ? 3
+                                        : 1,
+                              ),
+
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors
+                                      .black
+                                      .withOpacity(
+                                    0.05,
+                                  ),
+                                  blurRadius:
+                                      8,
+                                  offset:
+                                      const Offset(
+                                    0,
+                                    2,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            child: Column(
+                              mainAxisAlignment:
+                                  MainAxisAlignment
+                                      .center,
+
+                              children: [
+                                // ==================================
+                                // VISTA DEL MARCO
+                                // ==================================
+
+                                Container(
+                                  padding:
+                                      const EdgeInsets
+                                          .all(4),
+
+                                  decoration:
+                                      BoxDecoration(
+                                    shape:
+                                        BoxShape.circle,
+
+                                    color:
+                                        frame['color']
+                                                as Color? ??
+                                            Colors
+                                                .grey,
+
+                                    gradient:
+                                        frame[
+                                            'gradient'],
+                                  ),
+
+                                  child:
+                                      const CircleAvatar(
+                                    radius: 24,
+                                    backgroundColor:
+                                        Colors.white,
+                                    child:
+                                        Icon(
+                                      Icons.person,
+                                      size:
+                                          24,
+                                      color:
+                                          Color(
+                                        0xFF2ECC71,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  height: 8,
+                                ),
+
+                                // ==================================
+                                // NOMBRE
+                                // ==================================
+
+                                Text(
+                                  frame['name'],
+                                  style:
+                                      TextStyle(
+                                    fontSize:
+                                        14,
+                                    fontWeight:
+                                        isSelected
+                                            ? FontWeight
+                                                .bold
+                                            : FontWeight
+                                                .normal,
+                                    color:
+                                        isUnlocked
+                                            ? Colors
+                                                .black87
+                                            : Colors
+                                                .grey,
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  height: 2,
+                                ),
+
+                                // ==================================
+                                // BLOQUEADO
+                                // ==================================
+
+                                if (!isUnlocked)
+                                  const Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment
+                                            .center,
+                                    children: [
+                                      Icon(
+                                        Icons.lock,
+                                        size:
+                                            14,
+                                        color:
+                                            Colors.grey,
+                                      ),
+                                      SizedBox(
+                                        width:
+                                            4,
+                                      ),
+                                      Text(
+                                        'Bloqueado',
+                                        style:
+                                            TextStyle(
+                                          fontSize:
+                                              11,
+                                          color:
+                                              Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                // ==================================
+                                // SELECCIONADO
+                                // ==================================
+
+                                if (isSelected)
+                                  const Icon(
+                                    Icons
+                                        .check_circle,
+                                    size: 18,
+                                    color:
+                                        Color(
+                                      0xFF2ECC71,
+                                    ),
+                                  ),
+
+                                // ==================================
+                                // REQUISITO
+                                // ==================================
+
+                                if (!isUnlocked &&
+                                    frame[
+                                            'requirement'] !=
+                                        null)
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets
+                                            .symmetric(
+                                      horizontal:
+                                          8,
+                                    ),
+                                    child:
+                                        Text(
+                                      '🔒 '
+                                      '${frame['requirement']}',
+                                      style:
+                                          const TextStyle(
+                                        fontSize:
+                                            10,
+                                        color:
+                                            Colors.grey,
+                                      ),
+                                      textAlign:
+                                          TextAlign
+                                              .center,
+                                      maxLines:
+                                          2,
+                                      overflow:
+                                          TextOverflow
+                                              .ellipsis,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 16),
-
-            const Text(
-              'Selecciona tu marco:',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF27AE60),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Los marcos se desbloquean al cumplir logros',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.3,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: availableFrames.length,
-                itemBuilder: (context, index) {
-                  final frame = availableFrames[index];
-                  final isSelected = selectedFrame == frame['id'];
-                  final isUnlocked = frame['unlocked'] ?? false;
-
-                  return GestureDetector(
-                    onTap: isUnlocked ? () => _selectFrame(frame['id']) : null,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isSelected
-                              ? const Color(0xFF2ECC71)
-                              : Colors.grey.withOpacity(0.3),
-                          width: isSelected ? 3 : 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Vista previa del marco
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: frame['color'] as Color? ?? Colors.grey,
-                              gradient: frame['gradient'],
-                            ),
-                            child: const CircleAvatar(
-                              radius: 24,
-                              backgroundColor: Colors.white,
-                              child: Icon(
-                                Icons.person,
-                                size: 24,
-                                color: Color(0xFF2ECC71),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            frame['name'],
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: isUnlocked ? Colors.black87 : Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          if (!isUnlocked)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.lock,
-                                  size: 14,
-                                  color: Colors.grey,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Bloqueado',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          if (isSelected)
-                            const Icon(
-                              Icons.check_circle,
-                              size: 18,
-                              color: Color(0xFF2ECC71),
-                            ),
-                          if (!isUnlocked && frame['requirement'] != null)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                              ),
-                              child: Text(
-                                '🔒 ${frame['requirement']}',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-  BoxDecoration _getFrameDecoration(String frameId) {
-    final frame = availableFrames.firstWhere((f) => f['id'] == frameId);
+  // ============================================================
+  // DECORACIÓN DEL MARCO
+  // ============================================================
+
+  BoxDecoration _getFrameDecoration(
+    String frameId,
+  ) {
+    final frame =
+        availableFrames.firstWhere(
+      (f) => f['id'] == frameId,
+    );
 
     if (frame['gradient'] != null) {
       return BoxDecoration(
@@ -328,7 +965,9 @@ class _FramesScreenState extends State<FramesScreen> {
         gradient: frame['gradient'],
         boxShadow: [
           BoxShadow(
-            color: (frame['color'] as Color).withOpacity(0.5),
+            color:
+                (frame['color'] as Color)
+                    .withOpacity(0.5),
             blurRadius: 16,
             spreadRadius: 4,
           ),
@@ -338,10 +977,14 @@ class _FramesScreenState extends State<FramesScreen> {
 
     return BoxDecoration(
       shape: BoxShape.circle,
-      color: frame['color'] as Color? ?? Colors.grey,
+      color:
+          frame['color'] as Color? ??
+              Colors.grey,
       boxShadow: [
         BoxShadow(
-          color: (frame['color'] as Color).withOpacity(0.4),
+          color:
+              (frame['color'] as Color)
+                  .withOpacity(0.4),
           blurRadius: 8,
           spreadRadius: 2,
         ),
