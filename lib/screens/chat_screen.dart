@@ -715,7 +715,7 @@ class _ChatScreenState extends State<ChatScreen> {
           content: Text(
             '❤️ Receta guardada en favoritos',
           ),
-          backgroundColor: Color(0xFF2ECC71),
+          backgroundColor: Color(0xFFE9783F),
         ),
       );
     } catch (e) {
@@ -1212,7 +1212,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       BoxDecoration(
                     color:
                         const Color(
-                      0xFF2ECC71,
+                      0xFFE9783F,
                     ).withValues(
                       alpha: 0.2,
                     ),
@@ -1228,7 +1228,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       Icons.camera_alt,
                       color:
                           Color(
-                        0xFF2ECC71,
+                        0xFFE9783F,
                       ),
                     ),
 
@@ -1258,7 +1258,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       BoxDecoration(
                     color:
                         const Color(
-                      0xFF2ECC71,
+                      0xFFE9783F,
                     ).withValues(
                       alpha: 0.2,
                     ),
@@ -1274,7 +1274,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       Icons.photo,
                       color:
                           Color(
-                        0xFF2ECC71,
+                        0xFFE9783F,
                       ),
                     ),
 
@@ -1304,7 +1304,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       BoxDecoration(
                     color:
                         const Color(
-                      0xFF2ECC71,
+                      0xFFE9783F,
                     ),
 
                     shape:
@@ -1314,7 +1314,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       BoxShadow(
                         color:
                             const Color(
-                          0xFF2ECC71,
+                          0xFFE9783F,
                         ).withValues(
                           alpha: 0.4,
                         ),
@@ -1415,7 +1415,7 @@ class _ChatBubble extends StatelessWidget {
                 CircleAvatar(
                   radius: 16,
                   backgroundColor:
-                      const Color(0xFF2ECC71),
+                      const Color(0xFFE9783F),
                   backgroundImage:
                       const AssetImage(
                     'assets/amelia.jpg',
@@ -1453,7 +1453,7 @@ class _ChatBubble extends StatelessWidget {
                     color:
                         isUser
                             ? const Color(
-                                0xFF2ECC71,
+                                0xFFE9783F,
                               )
                             : Colors.white,
                     borderRadius:
@@ -1597,7 +1597,7 @@ class _ChatBubble extends StatelessWidget {
                     Icons.person,
                     size: 16,
                     color:
-                        Color(0xFF2ECC71),
+                        Color(0xFFE9783F),
                   ),
                 ),
             ],
@@ -1654,7 +1654,7 @@ class _ChatBubble extends StatelessWidget {
                         actionTaken
                             ? Colors.grey.shade200
                             : const Color(
-                                0xFF2ECC71,
+                                0xFFE9783F,
                               ),
                     onPressed:
                         actionTaken
@@ -1677,7 +1677,7 @@ class _ChatBubble extends StatelessWidget {
                           actionTaken
                               ? Colors.grey.shade500
                               : const Color(
-                                  0xFF27AE60,
+                                  0xFFC95D2E,
                                 ),
                     ),
                     label:
@@ -1689,7 +1689,7 @@ class _ChatBubble extends StatelessWidget {
                             actionTaken
                                 ? Colors.grey.shade500
                                 : const Color(
-                                    0xFF27AE60,
+                                    0xFFC95D2E,
                                   ),
                         fontSize: 12,
                       ),
@@ -1706,7 +1706,7 @@ class _ChatBubble extends StatelessWidget {
                           actionTaken
                               ? Colors.grey.shade300
                               : const Color(
-                                  0xFF2ECC71,
+                                  0xFFE9783F,
                                 ),
                     ),
                     onPressed:
@@ -1789,7 +1789,7 @@ class _TypingBubble extends StatelessWidget {
                     CircularProgressIndicator(
                   strokeWidth: 2,
                   color:
-                      Color(0xFF2ECC71),
+                      Color(0xFFE9783F),
                 ),
               ),
               const SizedBox(
@@ -1899,7 +1899,7 @@ class _RecipeBubble extends StatelessWidget {
           CircleAvatar(
             radius: 16,
             backgroundColor:
-                const Color(0xFF2ECC71),
+                const Color(0xFFE9783F),
             backgroundImage:
                 const AssetImage(
               'assets/amelia.jpg',
@@ -1955,7 +1955,7 @@ class _RecipeBubble extends StatelessWidget {
                     Border.all(
                   color:
                       const Color(
-                    0xFF2ECC71,
+                    0xFFE9783F,
                   ),
                   width: 2,
                 ),
@@ -1979,7 +1979,7 @@ class _RecipeBubble extends StatelessWidget {
                           FontWeight.bold,
                       color:
                           Color(
-                        0xFF27AE60,
+                        0xFFC95D2E,
                       ),
                     ),
                   ),
@@ -2068,7 +2068,7 @@ class _RecipeBubble extends StatelessWidget {
                           16,
                       color:
                           Color(
-                        0xFF27AE60,
+                        0xFFC95D2E,
                       ),
                     ),
                   ),
@@ -2100,7 +2100,7 @@ class _RecipeBubble extends StatelessWidget {
                                 6,
                             color:
                                 Color(
-                              0xFF2ECC71,
+                              0xFFE9783F,
                             ),
                           ),
                           const SizedBox(
@@ -2211,7 +2211,7 @@ class _RecipeBubble extends StatelessWidget {
                           16,
                       color:
                           Color(
-                        0xFF27AE60,
+                        0xFFC95D2E,
                       ),
                     ),
                   ),
@@ -2247,7 +2247,7 @@ class _RecipeBubble extends StatelessWidget {
                                   const BoxDecoration(
                                 color:
                                     Color(
-                                  0xFF2ECC71,
+                                  0xFFE9783F,
                                 ),
                                 shape:
                                     BoxShape
@@ -2358,7 +2358,7 @@ class _RecipeBubble extends StatelessWidget {
                                   .styleFrom(
                             backgroundColor:
                                 const Color(
-                              0xFF2ECC71,
+                              0xFFE9783F,
                             ),
                             padding:
                                 const EdgeInsets
@@ -2490,7 +2490,7 @@ class _RecipeBubble extends StatelessWidget {
                               publicadaEnForo
                                   ? Colors.grey
                                   : const Color(
-                                      0xFF27AE60,
+                                      0xFFC95D2E,
                                     ),
                         ),
                         padding:
@@ -2518,7 +2518,7 @@ class _RecipeBubble extends StatelessWidget {
                             publicadaEnForo
                                 ? Colors.grey
                                 : const Color(
-                                    0xFF27AE60,
+                                    0xFFC95D2E,
                                   ),
                         size:
                             18,
@@ -2534,7 +2534,7 @@ class _RecipeBubble extends StatelessWidget {
                               publicadaEnForo
                                   ? Colors.grey
                                   : const Color(
-                                      0xFF27AE60,
+                                      0xFFC95D2E,
                                     ),
                           fontSize:
                               12,
@@ -2627,7 +2627,7 @@ class _InfoChip extends StatelessWidget {
                 15,
             color:
                 const Color(
-              0xFF27AE60,
+              0xFFC95D2E,
             ),
           ),
           const SizedBox(
@@ -2642,7 +2642,7 @@ class _InfoChip extends StatelessWidget {
                   12,
               color:
                   Color(
-                0xFF27AE60,
+                0xFFC95D2E,
               ),
               fontWeight:
                   FontWeight.w500,

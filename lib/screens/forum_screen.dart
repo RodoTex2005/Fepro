@@ -146,7 +146,7 @@ class _ForumScreenState extends State<ForumScreen> {
               ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(
-                color: Color(0xFF2ECC71),
+                color: Color(0xFFE9783F),
               ),
             );
           }
@@ -187,7 +187,7 @@ class _ForumScreenState extends State<ForumScreen> {
                     Icons.restaurant_menu,
                     size: 70,
                     color:
-                        Color(0xFF2ECC71),
+                        Color(0xFFE9783F),
                   ),
 
                   SizedBox(height: 16),
@@ -377,7 +377,7 @@ class _ForumScreenState extends State<ForumScreen> {
                                 CircleAvatar(
                                   backgroundColor:
                                       const Color(
-                                    0xFF2ECC71,
+                                    0xFFE9783F,
                                   ),
 
                                   child:
@@ -496,7 +496,7 @@ class _ForumScreenState extends State<ForumScreen> {
                                               CircularProgressIndicator(
                                             color:
                                                 Color(
-                                              0xFF2ECC71,
+                                              0xFFE9783F,
                                             ),
                                           ),
                                         );
@@ -515,10 +515,10 @@ class _ForumScreenState extends State<ForumScreen> {
                                                 LinearGradient(
                                               colors: [
                                                 Color(
-                                                  0xFF2ECC71,
+                                                  0xFFE9783F,
                                                 ),
                                                 Color(
-                                                  0xFF27AE60,
+                                                  0xFFC95D2E,
                                                 ),
                                               ],
                                             ),
@@ -546,10 +546,10 @@ class _ForumScreenState extends State<ForumScreen> {
                                             LinearGradient(
                                           colors: [
                                             Color(
-                                              0xFF2ECC71,
+                                              0xFFE9783F,
                                             ),
                                             Color(
-                                              0xFF27AE60,
+                                              0xFFC95D2E,
                                             ),
                                           ],
                                         ),
@@ -601,7 +601,7 @@ class _ForumScreenState extends State<ForumScreen> {
 
                                 color:
                                     Color(
-                                  0xFF27AE60,
+                                  0xFFC95D2E,
                                 ),
                               ),
                             ),
@@ -754,7 +754,7 @@ class _ForumScreenState extends State<ForumScreen> {
                                         ),
                                         backgroundColor:
                                             Color(
-                                          0xFF2ECC71,
+                                          0xFFE9783F,
                                         ),
                                       ),
                                     );
@@ -1271,7 +1271,7 @@ class _RecipeDetailScreenState
             '❤️ Like añadido',
           ),
           backgroundColor:
-              Color(0xFF2ECC71),
+              Color(0xFFE9783F),
         ),
       );
     } catch (e) {
@@ -1499,7 +1499,7 @@ class _RecipeDetailScreenState
           content:
               Text('💬 Comentario añadido'),
           backgroundColor:
-              Color(0xFF2ECC71),
+              Color(0xFFE9783F),
         ),
       );
     } catch (e) {
@@ -1618,7 +1618,7 @@ class _RecipeDetailScreenState
           content:
               Text('🗑️ Comentario eliminado'),
           backgroundColor:
-              Color(0xFF2ECC71),
+              Color(0xFFE9783F),
         ),
       );
     } catch (e) {
@@ -1797,7 +1797,7 @@ class _RecipeDetailScreenState
             '❤️ Receta guardada en favoritos',
           ),
           backgroundColor:
-              Color(0xFF2ECC71),
+              Color(0xFFE9783F),
         ),
       );
     } catch (e) {
@@ -1894,7 +1894,7 @@ class _RecipeDetailScreenState
         centerTitle: true,
 
         backgroundColor:
-            const Color(0xFF2ECC71),
+            const Color(0xFFE9783F),
 
         elevation: 0,
 
@@ -1938,7 +1938,7 @@ class _RecipeDetailScreenState
                     CircleAvatar(
                       backgroundColor:
                           const Color(
-                        0xFF2ECC71,
+                        0xFFE9783F,
                       ),
 
                       child: Text(
@@ -2071,7 +2071,7 @@ class _RecipeDetailScreenState
                     fontWeight:
                         FontWeight.bold,
                     color:
-                        Color(0xFF27AE60),
+                        Color(0xFFC95D2E),
                   ),
                 ),
 
@@ -2103,7 +2103,7 @@ class _RecipeDetailScreenState
                     fontWeight:
                         FontWeight.bold,
                     color:
-                        Color(0xFF27AE60),
+                        Color(0xFFC95D2E),
                   ),
                 ),
 
@@ -2125,7 +2125,7 @@ class _RecipeDetailScreenState
                           Icons.circle,
                           size: 8,
                           color:
-                              Color(0xFF2ECC71),
+                              Color(0xFFE9783F),
                         ),
 
                         const SizedBox(
@@ -2161,7 +2161,7 @@ class _RecipeDetailScreenState
                     fontWeight:
                         FontWeight.bold,
                     color:
-                        Color(0xFF27AE60),
+                        Color(0xFFC95D2E),
                   ),
                 ),
 
@@ -2226,7 +2226,7 @@ class _RecipeDetailScreenState
                                 .styleFrom(
                           backgroundColor:
                               const Color(
-                            0xFF2ECC71,
+                            0xFFE9783F,
                           ),
 
                           padding:
@@ -2429,7 +2429,7 @@ class _RecipeDetailScreenState
                     fontWeight:
                         FontWeight.bold,
                     color:
-                        Color(0xFF27AE60),
+                        Color(0xFFC95D2E),
                   ),
                 ),
 
@@ -2486,7 +2486,7 @@ class _RecipeDetailScreenState
                               CircularProgressIndicator(
                             color:
                                 Color(
-                              0xFF2ECC71,
+                              0xFFE9783F,
                             ),
                           ),
                         ),
@@ -2617,7 +2617,7 @@ class _RecipeDetailScreenState
 
                                   backgroundColor:
                                       const Color(
-                                    0xFF2ECC71,
+                                    0xFFE9783F,
                                   ),
 
                                   child:
@@ -2889,7 +2889,7 @@ class _RecipeDetailScreenState
                                                           CircularProgressIndicator(
                                                         color:
                                                             Color(
-                                                          0xFF2ECC71,
+                                                          0xFFE9783F,
                                                         ),
                                                       ),
                                                     ),
@@ -3114,7 +3114,7 @@ class _RecipeDetailScreenState
 
                           color:
                               Color(
-                            0xFF27AE60,
+                            0xFFC95D2E,
                           ),
 
                           size:
@@ -3198,7 +3198,7 @@ class _RecipeDetailScreenState
                           const BoxDecoration(
                         color:
                             Color(
-                          0xFF2ECC71,
+                          0xFFE9783F,
                         ),
 
                         shape:

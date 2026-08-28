@@ -42,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               centerTitle: true,
               elevation: 0,
-              backgroundColor: const Color(0xFF2ECC71),
+              backgroundColor: const Color(0xFFE9783F),
             ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 400),
@@ -56,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         },
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF2ECC71),
+        selectedItemColor: const Color(0xFFE9783F),
         unselectedItemColor: Colors.grey,
         selectedFontSize: 12,
         unselectedFontSize: 12,

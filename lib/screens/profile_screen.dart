@@ -45,7 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'id': 'beginner',
       'name': 'Principiante',
       'icon': Icons.auto_awesome,
-      'color': const Color(0xFF2ECC71),
+      'color': const Color(0xFFE9783F),
       'requirement': 'Publica tu primera receta',
       'unlocked': false,
       'gradient': null,
@@ -401,7 +401,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor:
-            const Color(0xFF2ECC71),
+            const Color(0xFFE9783F),
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
@@ -428,8 +428,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 end:
                     Alignment.bottomRight,
                 colors: [
-                  Color(0xFF2ECC71),
-                  Color(0xFF27AE60),
+                  Color(0xFFE9783F),
+                  Color(0xFFC95D2E),
                 ],
               ),
             ),
@@ -467,7 +467,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ? const Icon(
                                 Icons.person,
                                 size: 50,
-                                color: Color(0xFF2ECC71),
+                                color: Color(0xFFE9783F),
                               )
                             : null,
                   ),
@@ -590,7 +590,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title:
                 'Personalizar Marco',
             iconColor:
-                const Color(0xFF2ECC71),
+                const Color(0xFFE9783F),
 
             onTap: () async {
               await Navigator.push(
@@ -634,7 +634,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title:
                 'Historial de Amelia',
             iconColor:
-                const Color(0xFF2ECC71),
+                const Color(0xFFE9783F),
 
             onTap:
                 _abrirHistorialAmelia,
@@ -645,7 +645,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title:
                 'Configuración',
             iconColor:
-                const Color(0xFF2ECC71),
+                const Color(0xFFE9783F),
 
             onTap: () {
               ScaffoldMessenger
@@ -657,7 +657,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     '(sin funcionalidad)',
                   ),
                   backgroundColor:
-                      Color(0xFF2ECC71),
+                      Color(0xFFE9783F),
                 ),
               );
             },
@@ -667,7 +667,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.help_outline,
             title: 'Ayuda',
             iconColor:
-                const Color(0xFF2ECC71),
+                const Color(0xFFE9783F),
 
             onTap: () {
               ScaffoldMessenger
@@ -679,7 +679,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     '(sin funcionalidad)',
                   ),
                   backgroundColor:
-                      Color(0xFF2ECC71),
+                      Color(0xFFE9783F),
                 ),
               );
             },
@@ -948,7 +948,7 @@ class AmeliaHistoryScreen
         centerTitle: true,
 
         backgroundColor:
-            const Color(0xFF2ECC71),
+            const Color(0xFFE9783F),
 
         elevation: 0,
 
@@ -981,7 +981,7 @@ class AmeliaHistoryScreen
               child:
                   CircularProgressIndicator(
                 color:
-                    Color(0xFF2ECC71),
+                    Color(0xFFE9783F),
               ),
             );
           }
@@ -1029,7 +1029,7 @@ class AmeliaHistoryScreen
                       Icons.history,
                       size: 80,
                       color:
-                          Color(0xFF2ECC71),
+                          Color(0xFFE9783F),
                     ),
 
                     SizedBox(
@@ -1266,7 +1266,7 @@ class AmeliaHistoryScreen
                             const CircleAvatar(
                               backgroundColor:
                                   Color(
-                                0xFF2ECC71,
+                                0xFFE9783F,
                               ),
 
                               child:
@@ -1337,7 +1337,7 @@ class AmeliaHistoryScreen
                                 color:
                                     publicada
                                         ? const Color(
-                                            0xFF2ECC71,
+                                            0xFFE9783F,
                                           ).withOpacity(
                                             0.12,
                                           )
@@ -1372,7 +1372,7 @@ class AmeliaHistoryScreen
                                     color:
                                         publicada
                                             ? const Color(
-                                                0xFF27AE60,
+                                                0xFFC95D2E,
                                               )
                                             : Colors
                                                 .grey,
@@ -1397,7 +1397,7 @@ class AmeliaHistoryScreen
                                       color:
                                           publicada
                                               ? const Color(
-                                                  0xFF27AE60,
+                                                  0xFFC95D2E,
                                                 )
                                               : Colors
                                                   .grey,
@@ -1423,10 +1423,10 @@ class AmeliaHistoryScreen
                               LinearGradient(
                             colors: [
                               Color(
-                                0xFF2ECC71,
+                                0xFFE9783F,
                               ),
                               Color(
-                                0xFF27AE60,
+                                0xFFC95D2E,
                               ),
                             ],
                           ),
@@ -1470,7 +1470,7 @@ class AmeliaHistoryScreen
                                         .bold,
                                 color:
                                     Color(
-                                  0xFF27AE60,
+                                  0xFFC95D2E,
                                 ),
                               ),
                             ),
@@ -1776,7 +1776,7 @@ class _BadgesSection
         icon: Icons.auto_awesome,
         label: 'Principiante',
         color:
-            Color(0xFF2ECC71),
+            Color(0xFFE9783F),
         description:
             'Primera receta publicada',
       ),

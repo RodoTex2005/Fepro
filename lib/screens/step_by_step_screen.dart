@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '/services/deepseek_service.dart';
 import '/prompts/amelia_prompt.dart';
@@ -136,7 +137,8 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
       if (!mounted) return;
 
       setState(() {
-        _ameliaMessage = response;
+final sanitized = response.replaceAll('*', '');
+    _ameliaMessage = sanitized;
       });
     } catch (e) {
       debugPrint('Error en Cocina con Amelia: $e');
@@ -229,7 +231,7 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
             textAlign: TextAlign.center,
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: Color(0xFF27AE60),
+              color: Color(0xFFC95D2E),
             ),
           ),
           content: const Text(
@@ -259,7 +261,7 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2ECC71),
+                backgroundColor: const Color(0xFFE9783F),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -304,7 +306,7 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
           content: Text(
             '🎉 ¡Receta completada con Amelia!',
           ),
-          backgroundColor: Color(0xFF2ECC71),
+          backgroundColor: Color(0xFFE9783F),
         ),
       );
 
@@ -338,7 +340,7 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
           content: Text(
             '🎉 ¡Tu logro fue compartido en el foro!',
           ),
-          backgroundColor: Color(0xFF2ECC71),
+          backgroundColor: Color(0xFFE9783F),
         ),
       );
     }
@@ -360,7 +362,7 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
             fontSize: 18,
           ),
         ),
-        backgroundColor: const Color(0xFF2ECC71),
+        backgroundColor: const Color(0xFFE9783F),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(
@@ -388,7 +390,7 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                 vertical: 10,
               ),
               decoration: BoxDecoration(
-                color: const Color(0xFF2ECC71),
+                color: const Color(0xFFE9783F),
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Text(
@@ -435,7 +437,7 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                       children: [
                         const CircleAvatar(
                           radius: 30,
-                          backgroundColor: Color(0xFF2ECC71),
+                          backgroundColor: Color(0xFFE9783F),
                           backgroundImage: AssetImage(
                             'assets/amelia.jpg',
                           ),
@@ -445,18 +447,20 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
 
                         if (_isLoading)
                           const CircularProgressIndicator(
-                            color: Color(0xFF2ECC71),
+                            color: Color(0xFFE9783F),
                           )
                         else
-                          Text(
-                            _ameliaMessage.isEmpty
+                          MarkdownBody(
+                            data: _ameliaMessage.isEmpty
                                 ? '¡Vamos a cocinar juntos! 👩‍🍳'
                                 : _ameliaMessage,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              height: 1.5,
+                            styleSheet: MarkdownStyleSheet(
+                              p: const TextStyle(
+                                fontSize: 17,
+                                height: 1.5,
+                              ),
                             ),
-                            textAlign: TextAlign.center,
+                            selectable: true,
                           ),
                       ],
                     ),
@@ -507,7 +511,7 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
 
                 Container(
                   decoration: const BoxDecoration(
-                    color: Color(0xFF2ECC71),
+                    color: Color(0xFFE9783F),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
@@ -544,12 +548,12 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                     ),
                     icon: const Icon(
                       Icons.arrow_back,
-                      color: Color(0xFF2ECC71),
+                      color: Color(0xFFE9783F),
                     ),
                     label: const Text(
                       'Anterior',
                       style: TextStyle(
-                        color: Color(0xFF2ECC71),
+                        color: Color(0xFFE9783F),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -565,7 +569,7 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2ECC71),
+                      backgroundColor: const Color(0xFFE9783F),
                       padding: const EdgeInsets.symmetric(
                         vertical: 14,
                       ),
@@ -647,14 +651,14 @@ class _InfoChip extends StatelessWidget {
           Icon(
             icon,
             size: 15,
-            color: const Color(0xFF27AE60),
+            color: const Color(0xFFC95D2E),
           ),
           const SizedBox(width: 5),
           Text(
             text,
             style: const TextStyle(
               fontSize: 12,
-              color: Color(0xFF27AE60),
+              color: Color(0xFFC95D2E),
               fontWeight: FontWeight.w500,
             ),
           ),

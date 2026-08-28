@@ -29,7 +29,7 @@ class _FramesScreenState extends State<FramesScreen> {
       'id': 'beginner',
       'name': 'Principiante',
       'icon': Icons.auto_awesome,
-      'color': const Color(0xFF2ECC71),
+      'color': const Color(0xFFE9783F),
       'requirement': 'Publica tu primera receta',
       'unlocked': false,
       'gradient': null,
@@ -519,7 +519,7 @@ class _FramesScreenState extends State<FramesScreen> {
             '${_getFrameName(frameId)}',
           ),
           backgroundColor:
-              const Color(0xFF2ECC71),
+              const Color(0xFFE9783F),
         ),
       );
     }
@@ -554,7 +554,7 @@ class _FramesScreenState extends State<FramesScreen> {
           ),
         ),
         backgroundColor:
-            const Color(0xFF2ECC71),
+            const Color(0xFFE9783F),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(
@@ -571,7 +571,7 @@ class _FramesScreenState extends State<FramesScreen> {
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
-                color: Color(0xFF2ECC71),
+                color: Color(0xFFE9783F),
               ),
             )
           : Padding(
@@ -616,7 +616,7 @@ class _FramesScreenState extends State<FramesScreen> {
                               Icons.person,
                               size: 50,
                               color: Color(
-                                0xFF2ECC71,
+                                0xFFE9783F,
                               ),
                             ),
                           ),
@@ -657,7 +657,7 @@ class _FramesScreenState extends State<FramesScreen> {
                       fontWeight:
                           FontWeight.bold,
                       color:
-                          Color(0xFF27AE60),
+                          Color(0xFFC95D2E),
                     ),
                   ),
 
@@ -736,7 +736,7 @@ class _FramesScreenState extends State<FramesScreen> {
                                 color:
                                     isSelected
                                         ? const Color(
-                                            0xFF2ECC71,
+                                            0xFFE9783F,
                                           )
                                         : Colors
                                             .grey
@@ -810,7 +810,7 @@ class _FramesScreenState extends State<FramesScreen> {
                                           24,
                                       color:
                                           Color(
-                                        0xFF2ECC71,
+                                        0xFFE9783F,
                                       ),
                                     ),
                                   ),
@@ -894,7 +894,7 @@ class _FramesScreenState extends State<FramesScreen> {
                                     size: 18,
                                     color:
                                         Color(
-                                      0xFF2ECC71,
+                                      0xFFE9783F,
                                     ),
                                   ),
 

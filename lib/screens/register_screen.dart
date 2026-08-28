@@ -329,7 +329,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             children: [
               Icon(
                 Icons.mark_email_read,
-                color: Color(0xFF2ECC71),
+                color: Color(0xFF6F9B72),
               ),
               SizedBox(width: 8),
               Expanded(
@@ -370,7 +370,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       SnackBar(
         content: Text(mensaje),
         backgroundColor:
-            const Color(0xFF2ECC71),
+            const Color(0xFFE9783F),
       ),
     );
   }
@@ -383,14 +383,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor:
-          const Color(0xFFFFF8F0),
+          const Color(0xFFFFF7EC),
 
       appBar: AppBar(
         title: const Text(
           'Crear cuenta',
         ),
         backgroundColor:
-            const Color(0xFF2ECC71),
+            const Color(0xFFE9783F),
         foregroundColor:
             Colors.white,
       ),
@@ -404,7 +404,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             elevation: 20,
 
             shadowColor:
-                const Color(0xFF2ECC71)
+                const Color(0xFFE9783F)
                     .withOpacity(0.3),
 
             shape:
@@ -429,7 +429,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Icons.person_add,
                     size: 70,
                     color:
-                        Color(0xFF2ECC71),
+                        Color(0xFFE9783F),
                   ),
 
                   const SizedBox(
@@ -447,7 +447,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       fontWeight:
                           FontWeight.bold,
                       color:
-                          Color(0xFF27AE60),
+                          Color(0xFFE9783F),
                     ),
                   ),
 
@@ -682,7 +682,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               .styleFrom(
                         backgroundColor:
                             const Color(
-                          0xFF2ECC71,
+                          0xFFE9783F,
                         ),
 
                         shape:

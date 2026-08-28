@@ -189,7 +189,7 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
           content: Text(
             '🗑️ Receta eliminada de favoritos',
           ),
-          backgroundColor: Color(0xFF2ECC71),
+          backgroundColor: Color(0xFFE9783F),
         ),
       );
 
@@ -225,7 +225,7 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
           '📤 Receta copiada al portapapeles: '
           '${recipe['name']}',
         ),
-        backgroundColor: const Color(0xFF2ECC71),
+        backgroundColor: const Color(0xFFE9783F),
       ),
     );
   }
@@ -244,7 +244,7 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
             color: Colors.white,
           ),
         ),
-        backgroundColor: const Color(0xFF2ECC71),
+        backgroundColor: const Color(0xFFE9783F),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(
@@ -303,7 +303,7 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
                   child: ListTile(
                     leading: const Icon(
                       Icons.restaurant,
-                      color: Color(0xFF2ECC71),
+                      color: Color(0xFFE9783F),
                     ),
 
                     title: Text(
@@ -327,7 +327,7 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
                         IconButton(
                           icon: const Icon(
                             Icons.share_outlined,
-                            color: Color(0xFF2ECC71),
+                            color: Color(0xFFE9783F),
                           ),
                           onPressed: () =>
                               _shareRecipe(recipe),

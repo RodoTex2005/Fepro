@@ -310,7 +310,7 @@ class _PublishRecipeScreenState
           content: Text(
             '📝 ¡Receta publicada correctamente!',
           ),
-          backgroundColor: Color(0xFF27AE60),
+          backgroundColor: Color(0xFFC95D2E),
         ),
       );
 
@@ -391,7 +391,7 @@ class _PublishRecipeScreenState
               style: TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF27AE60),
+                color: Color(0xFFC95D2E),
               ),
             ),
 
@@ -457,7 +457,7 @@ class _PublishRecipeScreenState
                     BorderRadius.circular(16),
 
                 border: Border.all(
-                  color: const Color(0xFF2ECC71),
+                  color: const Color(0xFFE9783F),
                   width: 1.5,
                 ),
               ),
@@ -481,7 +481,7 @@ class _PublishRecipeScreenState
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF27AE60),
+                      color: Color(0xFFC95D2E),
                       height: 1.4,
                     ),
                   ),
@@ -516,7 +516,7 @@ class _PublishRecipeScreenState
                 style:
                     ElevatedButton.styleFrom(
                   backgroundColor:
-                      const Color(0xFF2ECC71),
+                      const Color(0xFFE9783F),
 
                   padding:
                       const EdgeInsets.symmetric(
@@ -612,7 +612,7 @@ class _PublishRecipeScreenState
               style: TextStyle(
                 fontSize: 21,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF27AE60),
+                color: Color(0xFFC95D2E),
               ),
             ),
 
@@ -678,7 +678,7 @@ class _PublishRecipeScreenState
                     border: Border.all(
                       color:
                           const Color(
-                        0xFF2ECC71,
+                        0xFFE9783F,
                       ),
                       width: 2,
                     ),
@@ -714,7 +714,7 @@ class _PublishRecipeScreenState
                                   size: 70,
                                   color:
                                       Color(
-                                    0xFF2ECC71,
+                                    0xFFE9783F,
                                   ),
                                 ),
 
@@ -731,7 +731,7 @@ class _PublishRecipeScreenState
                                         FontWeight.bold,
                                     color:
                                         Color(
-                                      0xFF27AE60,
+                                      0xFFC95D2E,
                                     ),
                                   ),
                                 ),
@@ -770,7 +770,7 @@ class _PublishRecipeScreenState
                       const BorderSide(
                     color:
                         Color(
-                      0xFF2ECC71,
+                      0xFFE9783F,
                     ),
                     width: 1.5,
                   ),
@@ -797,7 +797,7 @@ class _PublishRecipeScreenState
                   Icons.photo_library_outlined,
                   color:
                       Color(
-                    0xFF27AE60,
+                    0xFFC95D2E,
                   ),
                 ),
 
@@ -811,7 +811,7 @@ class _PublishRecipeScreenState
                         FontWeight.bold,
                     color:
                         Color(
-                      0xFF27AE60,
+                      0xFFC95D2E,
                     ),
                   ),
                 ),
@@ -837,7 +837,7 @@ class _PublishRecipeScreenState
                     ElevatedButton.styleFrom(
                   backgroundColor:
                       const Color(
-                    0xFF2ECC71,
+                    0xFFE9783F,
                   ),
 
                   disabledBackgroundColor:
@@ -916,7 +916,7 @@ class _PublishRecipeScreenState
 
       appBar: AppBar(
         backgroundColor:
-            const Color(0xFF2ECC71),
+            const Color(0xFFE9783F),
 
         elevation: 0,
 

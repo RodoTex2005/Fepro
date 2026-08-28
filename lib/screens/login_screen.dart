@@ -496,7 +496,7 @@ class _LoginScreenState extends State<LoginScreen>
                 children: [
                   Icon(
                     Icons.mark_email_unread,
-                    color: Color(0xFF2ECC71),
+                    color: Color(0xFFE9783F),
                   ),
                   SizedBox(width: 8),
                   Expanded(
@@ -536,7 +536,7 @@ class _LoginScreenState extends State<LoginScreen>
                                       'Correo de verificación reenviado.',
                                     ),
                                     backgroundColor:
-                                        Color(0xFF2ECC71),
+                                        Color(0xFFE9783F),
                                   ),
                                 );
                               }
@@ -591,7 +591,7 @@ class _LoginScreenState extends State<LoginScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),
-        backgroundColor: const Color(0xFF2ECC71),
+        backgroundColor: const Color(0xFFE9783F),
       ),
     );
   }
@@ -612,7 +612,7 @@ class _LoginScreenState extends State<LoginScreen>
             child: Card(
               elevation: 20,
               shadowColor:
-                  const Color(0xFF2ECC71).withOpacity(0.3),
+                  const Color(0xFFE9783F).withOpacity(0.3),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
@@ -634,14 +634,14 @@ class _LoginScreenState extends State<LoginScreen>
                           height: 120,
                           width: 120,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF2ECC71)
+                            color: const Color(0xFFE9783F)
                                 .withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
                             Icons.smart_toy,
                             size: 60,
-                            color: Color(0xFF2ECC71),
+                            color: Color(0xFFE9783F),
                           ),
                         );
                       },
@@ -654,7 +654,7 @@ class _LoginScreenState extends State<LoginScreen>
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF27AE60),
+                        color: Color(0xFFE9783F),
                       ),
                     ),
 
@@ -741,7 +741,7 @@ class _LoginScreenState extends State<LoginScreen>
                         style:
                             ElevatedButton.styleFrom(
                           backgroundColor:
-                              const Color(0xFF2ECC71),
+                              const Color(0xFFE9783F),
                           shape:
                               RoundedRectangleBorder(
                             borderRadius:
@@ -889,7 +889,7 @@ class _LoginScreenState extends State<LoginScreen>
                         '¿No tienes cuenta? Regístrate',
                         style: TextStyle(
                           color:
-                              Color(0xFF2ECC71),
+                              Color(0xFFE9783F),
                           fontWeight:
                               FontWeight.w500,
                         ),

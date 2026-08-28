@@ -28,14 +28,14 @@ class RecetiasApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Recetias',
       theme: ThemeData(
-        primaryColor: const Color(0xFF2ECC71),
+        primaryColor: const Color(0xFFE9783F),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2ECC71),
-          primary: const Color(0xFF2ECC71),
-          secondary: const Color(0xFFF39C12),
+          seedColor: const Color(0xFFE9783F),
+          primary: const Color(0xFFE9783F),
+          secondary: const Color(0xFFF3A477),
         ),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFFFF8F0),
+        scaffoldBackgroundColor: const Color(0xFFFFF7EC),
       ),
       home: const AuthGate(),
     );
@@ -54,7 +54,7 @@ class AuthGate extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
-              child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
+              child: CircularProgressIndicator(color: Color(0xFFE9783F)),
             ),
           );
         }

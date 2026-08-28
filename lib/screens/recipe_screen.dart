@@ -28,7 +28,7 @@ class RecipeScreen extends StatelessWidget {
             color: Colors.white,
           ),
         ),
-        backgroundColor: const Color(0xFF2ECC71),
+        backgroundColor: const Color(0xFFE9783F),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(
@@ -51,7 +51,7 @@ class RecipeScreen extends StatelessWidget {
                   content: Text(
                     '❤️ Receta guardada en favoritos',
                   ),
-                  backgroundColor: Color(0xFF2ECC71),
+                  backgroundColor: Color(0xFFE9783F),
                 ),
               );
             },
@@ -76,7 +76,7 @@ class RecipeScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
 
               decoration: BoxDecoration(
-                color: const Color(0xFF2ECC71),
+                color: const Color(0xFFE9783F),
                 borderRadius: BorderRadius.circular(12),
               ),
 
@@ -117,7 +117,7 @@ class RecipeScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF27AE60),
+                color: Color(0xFFC95D2E),
               ),
             ),
 
@@ -137,7 +137,7 @@ class RecipeScreen extends StatelessWidget {
                     const Icon(
                       Icons.circle,
                       size: 8,
-                      color: Color(0xFF2ECC71),
+                      color: Color(0xFFE9783F),
                     ),
 
                     const SizedBox(width: 8),
@@ -168,7 +168,7 @@ class RecipeScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF27AE60),
+                color: Color(0xFFC95D2E),
               ),
             ),
 
@@ -218,7 +218,7 @@ class RecipeScreen extends StatelessWidget {
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
-                      const Color(0xFF2ECC71),
+                      const Color(0xFFE9783F),
 
                   padding:
                       const EdgeInsets.symmetric(
