@@ -5,16 +5,22 @@ import '/services/deepseek_service.dart';
 import '/prompts/amelia_prompt.dart';
 import '/prompts/cooking_prompt.dart';
 
+import 'publish_recipe_screen.dart';
+
 class StepByStepScreen extends StatefulWidget {
   final String recipeName;
   final List<String> ingredients;
   final String instructions;
+
+  // Receta completa para poder compartirla al finalizar
+  final Map<String, dynamic> recipe;
 
   const StepByStepScreen({
     super.key,
     required this.recipeName,
     required this.ingredients,
     required this.instructions,
+    required this.recipe,
   });
 
   @override
@@ -51,9 +57,17 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
     super.dispose();
   }
 
+  // ============================================================
+  // INICIAR COCINA
+  // ============================================================
+
   Future<void> _startCooking() async {
     await _askAmelia('Quiero comenzar a cocinar esta receta.');
   }
+
+  // ============================================================
+  // PREGUNTAR A AMELIA
+  // ============================================================
 
   Future<void> _askAmelia(String userMessage) async {
     if (_isLoading) return;
@@ -72,8 +86,14 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
       final recipeJson = jsonEncode(recipeData);
 
       final messages = <Map<String, String>>[
-        {'role': 'system', 'content': ameliaPrompt},
-        {'role': 'system', 'content': cookingPrompt},
+        {
+          'role': 'system',
+          'content': ameliaPrompt,
+        },
+        {
+          'role': 'system',
+          'content': cookingPrompt,
+        },
         {
           'role': 'system',
           'content': '''
@@ -93,14 +113,25 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
       ];
 
       messages.addAll(_conversation);
-      messages.add({'role': 'user', 'content': userMessage});
+
+      messages.add({
+        'role': 'user',
+        'content': userMessage,
+      });
 
       final response = await _deepSeekService.sendMessage(
         messages: messages,
       );
 
-      _conversation.add({'role': 'user', 'content': userMessage});
-      _conversation.add({'role': 'assistant', 'content': response});
+      _conversation.add({
+        'role': 'user',
+        'content': userMessage,
+      });
+
+      _conversation.add({
+        'role': 'assistant',
+        'content': response,
+      });
 
       if (!mounted) return;
 
@@ -125,13 +156,23 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
     }
   }
 
+  // ============================================================
+  // ENVIAR DUDA
+  // ============================================================
+
   Future<void> _sendDoubt() async {
     final text = _doubtController.text.trim();
+
     if (text.isEmpty || _isLoading) return;
 
     _doubtController.clear();
+
     await _askAmelia(text);
   }
+
+  // ============================================================
+  // SIGUIENTE PASO
+  // ============================================================
 
   void _nextStep() {
     if (currentStep < steps.length - 1) {
@@ -140,12 +181,16 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
       });
 
       _askAmelia(
-        'Ya terminé el paso ${currentStep}. Indícame qué debo hacer ahora.',
+        'Ya terminé el paso $currentStep. Indícame qué debo hacer ahora.',
       );
     } else {
       _finishCooking();
     }
   }
+
+  // ============================================================
+  // PASO ANTERIOR
+  // ============================================================
 
   void _previousStep() {
     if (currentStep > 0) {
@@ -154,21 +199,154 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
       });
 
       _askAmelia(
-        'Quiero regresar al paso ${currentStep + 1}. Ayúdame a continuar desde ahí.',
+        'Quiero regresar al paso ${currentStep + 1}. '
+        'Ayúdame a continuar desde ahí.',
       );
     }
   }
 
-  void _finishCooking() {
-    Navigator.pop(context);
+  // ============================================================
+  // FINALIZAR RECETA
+  // ============================================================
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🎉 ¡Receta completada con Amelia!'),
-        backgroundColor: Color(0xFF2ECC71),
+  Future<void> _finishCooking() async {
+    if (!mounted) return;
+
+    // ============================================================
+    // PREGUNTAR SI QUIERE COMPARTIR
+    // ============================================================
+
+    final compartir = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            '🎉 ¡Receta completada!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF27AE60),
+            ),
+          ),
+          content: const Text(
+            '¡Felicidades! Terminaste de preparar tu receta con Amelia. 👩‍🍳✨\n\n'
+            '¿Te gustaría compartir tu logro en el foro?',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 15,
+              height: 1.4,
+            ),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'Ahora no',
+                style: TextStyle(
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2ECC71),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(
+                Icons.camera_alt,
+              ),
+              label: const Text(
+                'Compartir logro',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    // ============================================================
+    // EL USUARIO NO QUIERE COMPARTIR
+    // ============================================================
+
+    if (compartir != true) {
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '🎉 ¡Receta completada con Amelia!',
+          ),
+          backgroundColor: Color(0xFF2ECC71),
+        ),
+      );
+
+      return;
+    }
+
+    // ============================================================
+    // EL USUARIO QUIERE COMPARTIR
+    // ============================================================
+
+    final resultado = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublishRecipeScreen(
+          recipe: widget.recipe,
+        ),
       ),
     );
+
+    if (!mounted) return;
+
+    // ============================================================
+    // PUBLICACIÓN EXITOSA
+    // ============================================================
+
+    if (resultado == true) {
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '🎉 ¡Tu logro fue compartido en el foro!',
+          ),
+          backgroundColor: Color(0xFF2ECC71),
+        ),
+      );
+    }
   }
+
+  // ============================================================
+  // INTERFAZ PRINCIPAL
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -185,17 +363,30 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
         backgroundColor: const Color(0xFF2ECC71),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       backgroundColor: const Color(0xFFFFF8F0),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
         child: Column(
           children: [
+            // ======================================================
+            // INDICADOR DEL PASO
+            // ======================================================
+
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 10,
+              ),
               decoration: BoxDecoration(
                 color: const Color(0xFF2ECC71),
                 borderRadius: BorderRadius.circular(30),
@@ -211,7 +402,13 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                 ),
               ),
             ),
+
             const SizedBox(height: 12),
+
+            // ======================================================
+            // MENSAJE DE AMELIA
+            // ======================================================
+
             Expanded(
               flex: 3,
               child: Center(
@@ -239,9 +436,13 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                         const CircleAvatar(
                           radius: 30,
                           backgroundColor: Color(0xFF2ECC71),
-                          backgroundImage: AssetImage('assets/amelia.jpg'),
+                          backgroundImage: AssetImage(
+                            'assets/amelia.jpg',
+                          ),
                         ),
+
                         const SizedBox(height: 14),
+
                         if (_isLoading)
                           const CircularProgressIndicator(
                             color: Color(0xFF2ECC71),
@@ -263,7 +464,13 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                 ),
               ),
             ),
+
             const SizedBox(height: 6),
+
+            // ======================================================
+            // CAJA DE DUDAS
+            // ======================================================
+
             Row(
               children: [
                 Expanded(
@@ -283,41 +490,62 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                       controller: _doubtController,
                       enabled: !_isLoading,
                       decoration: const InputDecoration(
-                        hintText: '¿Tienes alguna duda? Pregúntame',
+                        hintText:
+                            '¿Tienes alguna duda? Pregúntame',
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 20),
+                        contentPadding:
+                            EdgeInsets.symmetric(
+                          horizontal: 20,
+                        ),
                       ),
                       onSubmitted: (_) => _sendDoubt(),
                     ),
                   ),
                 ),
+
                 const SizedBox(width: 8),
+
                 Container(
                   decoration: const BoxDecoration(
                     color: Color(0xFF2ECC71),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _isLoading ? null : _sendDoubt,
+                    icon: const Icon(
+                      Icons.send,
+                      color: Colors.white,
+                    ),
+                    onPressed:
+                        _isLoading ? null : _sendDoubt,
                     iconSize: 24,
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 12),
+
+            // ======================================================
+            // BOTONES ANTERIOR / SIGUIENTE
+            // ======================================================
+
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.grey.shade200,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    icon: const Icon(Icons.arrow_back, color: Color(0xFF2ECC71)),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Color(0xFF2ECC71),
+                    ),
                     label: const Text(
                       'Anterior',
                       style: TextStyle(
@@ -326,15 +554,21 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                       ),
                     ),
                     onPressed:
-                        currentStep > 0 && !_isLoading ? _previousStep : null,
+                        currentStep > 0 && !_isLoading
+                            ? _previousStep
+                            : null,
                   ),
                 ),
+
                 const SizedBox(width: 16),
+
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2ECC71),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -354,21 +588,77 @@ No inventes pasos, ingredientes, tiempos ni cantidades.
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    onPressed: _isLoading ? null : _nextStep,
+                    onPressed:
+                        _isLoading ? null : _nextStep,
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 10),
+
+            // ======================================================
+            // VOLVER AL CHAT
+            // ======================================================
+
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text(
                 'Volver al chat',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(
+                  color: Colors.grey,
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ================================================================
+// INFO CHIP
+// ================================================================
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _InfoChip({
+    required this.icon,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F8F4),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 15,
+            color: const Color(0xFF27AE60),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF27AE60),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

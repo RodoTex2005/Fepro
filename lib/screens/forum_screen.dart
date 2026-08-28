@@ -1457,6 +1457,9 @@ class _RecipeDetailScreenState
 
           instructions:
               instrucciones,
+          
+          // Pasamos la receta completa
+          recipe: widget.receta
         ),
       ),
     );

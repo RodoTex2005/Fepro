@@ -7,6 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'step_by_step_screen.dart';
+import 'publish_recipe_screen.dart';
+
 import '/services/deepseek_service.dart';
 import '/services/gemini_service.dart';
 
@@ -85,6 +87,8 @@ class _ChatScreenState extends State<ChatScreen> {
   // ============================================================
 
   void _addWelcomeMessage() {
+    if (!mounted) return;
+
     setState(() {
       messages.add({
         'text':
@@ -127,7 +131,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       // ==========================================================
-      // PREPARAR PROMPTS E HISTORIAL
+      // PREPARAR PROMPTS
       // ==========================================================
 
       final List<Map<String, String>> promptMessages = [
@@ -144,6 +148,10 @@ class _ChatScreenState extends State<ChatScreen> {
           'content': recipePrompt,
         },
       ];
+
+      // ==========================================================
+      // AGREGAR HISTORIAL DEL CHAT
+      // ==========================================================
 
       for (final msg in messages) {
         final msgText = msg['text'] as String?;
@@ -172,7 +180,7 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint('============================================');
 
       // ==========================================================
-      // LIMPIAR MARKDOWN
+      // LIMPIAR MARKDOWN DEL JSON
       // ==========================================================
 
       String cleanResponse = response.trim();
@@ -218,7 +226,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (data is Map<String, dynamic> &&
           data['type']?.toString().toLowerCase() == 'recipe') {
-        final recipe = {
+        final recipe = <String, dynamic>{
           'type': 'recipe',
           'name': data['name']?.toString() ?? 'Receta de Amelia',
           'description': data['description']?.toString() ?? '',
@@ -248,6 +256,7 @@ class _ChatScreenState extends State<ChatScreen> {
               : <String>[],
           'advice': data['advice']?.toString() ?? '',
           'finalMessage': data['finalMessage']?.toString() ?? '',
+          'publicadaEnForo': false,
         };
 
         debugPrint('========== RECETA DETECTADA ==========');
@@ -277,9 +286,10 @@ class _ChatScreenState extends State<ChatScreen> {
         recipe['recetaId'] = recetaId;
 
         debugPrint(
-          'Receta preparada para el botón Guardar con ID: '
-          '${recipe['recetaId']}',
+          'Receta preparada con ID: ${recipe['recetaId']}',
         );
+
+        if (!mounted) return;
 
         // ========================================================
         // MOSTRAR RECETA EN EL CHAT
@@ -310,6 +320,8 @@ class _ChatScreenState extends State<ChatScreen> {
         debugPrint(
           'La respuesta NO fue reconocida como receta.',
         );
+
+        if (!mounted) return;
 
         setState(() {
           messages.add({
@@ -353,17 +365,29 @@ class _ChatScreenState extends State<ChatScreen> {
   void _goToCookingMode(
     Map<String, dynamic> recipe,
   ) {
-    final recipeName =
-        recipe['name'] ?? 'Receta';
+    final String recipeName =
+        recipe['name']?.toString() ?? 'Receta';
 
-    final ingredients = List<String>.from(
-      recipe['ingredients'] ?? [],
-    );
+    final List<String> ingredients =
+        recipe['ingredients'] is List
+            ? List<String>.from(
+                recipe['ingredients'].map(
+                  (e) => e.toString(),
+                ),
+              )
+            : <String>[];
 
-    final instructions =
-        List<String>.from(
-          recipe['preparation'] ?? [],
-        ).join('\n');
+    final List<String> preparation =
+        recipe['preparation'] is List
+            ? List<String>.from(
+                recipe['preparation'].map(
+                  (e) => e.toString(),
+                ),
+              )
+            : <String>[];
+
+    final String instructions =
+        preparation.join('\n');
 
     Navigator.push(
       context,
@@ -372,6 +396,10 @@ class _ChatScreenState extends State<ChatScreen> {
           recipeName: recipeName,
           ingredients: ingredients,
           instructions: instructions,
+
+          // IMPORTANTE:
+          // StepByStepScreen ahora necesita la receta completa.
+          recipe: recipe,
         ),
       ),
     );
@@ -384,172 +412,70 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _publishRecipe(
     Map<String, dynamic> recipe,
   ) async {
-    try {
-      final user =
-          FirebaseAuth.instance.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
 
-      // ========================================================
-      // COMPROBAR USUARIO
-      // ========================================================
+    // ============================================================
+    // COMPROBAR USUARIO
+    // ============================================================
 
-      if (user == null) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '⚠️ Debes iniciar sesión para publicar una receta.',
-            ),
-            backgroundColor: Color(0xFFF39C12),
-          ),
-        );
-
-        return;
-      }
-
-      // ========================================================
-      // OBTENER ID DE LA RECETA
-      // ========================================================
-
-      final recetaId = recipe['recetaId'];
-
-      if (recetaId == null ||
-          recetaId.toString().isEmpty) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '❌ No se encontró el ID de la receta.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-
-        return;
-      }
-
-      debugPrint(
-        '========== PUBLICANDO RECETA =========='
-      );
-
-      debugPrint(
-        'Receta: ${recipe['name']}',
-      );
-
-      debugPrint(
-        'ID: $recetaId',
-      );
-
-      // ========================================================
-      // REFERENCIA A LA RECETA
-      // ========================================================
-
-      final recetaRef = FirebaseFirestore.instance
-          .collection('recetas')
-          .doc(recetaId.toString());
-
-      // ========================================================
-      // COMPROBAR QUE LA RECETA EXISTE
-      // ========================================================
-
-      final recetaSnapshot =
-          await recetaRef.get();
-
-      if (!recetaSnapshot.exists) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '❌ La receta no existe en Firestore.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-
-        return;
-      }
-
-      final datosExistentes =
-          recetaSnapshot.data();
-
-      // ========================================================
-      // COMPROBAR SI YA ESTÁ PUBLICADA
-      // ========================================================
-
-      if (datosExistentes?['publicadaEnForo'] == true) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '⚠️ Esta receta ya está publicada en el foro.',
-            ),
-            backgroundColor: Color(0xFFF39C12),
-          ),
-        );
-
-        return;
-      }
-
-      // ========================================================
-      // PUBLICAR RECETA
-      // ========================================================
-
-      await recetaRef.update({
-        'publicadaEnForo': true,
-        'fechaPublicacionForo':
-            FieldValue.serverTimestamp(),
-        'likes': 0,
-        'comentarios': 0,
-      });
-
-      debugPrint(
-        '✅ RECETA PUBLICADA CORRECTAMENTE EN EL FORO',
-      );
-
-      debugPrint(
-        '======================================'
-      );
-
-      // ========================================================
-      // MOSTRAR CONFIRMACIÓN
-      // ========================================================
-
+    if (user == null) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            '📝 ¡Receta publicada correctamente en el foro!',
+            '⚠️ Debes iniciar sesión para publicar una receta.',
           ),
-          backgroundColor: Color(0xFF27AE60),
+          backgroundColor: Color(0xFFF39C12),
         ),
       );
 
-      // ========================================================
-      // MARCARLA COMO PUBLICADA EN EL CHAT
-      // ========================================================
+      return;
+    }
 
-      setState(() {
-        recipe['publicadaEnForo'] = true;
-      });
-    } catch (e) {
-      debugPrint(
-        'ERROR AL PUBLICAR RECETA EN EL FORO: $e',
-      );
+    // ============================================================
+    // COMPROBAR ID DE RECETA
+    // ============================================================
 
+    final recetaId = recipe['recetaId'];
+
+    if (recetaId == null ||
+        recetaId.toString().isEmpty) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text(
-            '❌ No se pudo publicar la receta: $e',
+            '❌ No se encontró el ID de la receta.',
           ),
           backgroundColor: Colors.red,
         ),
       );
+
+      return;
+    }
+
+    // ============================================================
+    // ABRIR PANTALLA DE PUBLICACIÓN
+    // ============================================================
+
+    final resultado = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublishRecipeScreen(
+          recipe: recipe,
+        ),
+      ),
+    );
+
+    // ============================================================
+    // PUBLICACIÓN EXITOSA
+    // ============================================================
+
+    if (resultado == true && mounted) {
+      setState(() {
+        recipe['publicadaEnForo'] = true;
+      });
     }
   }
 
@@ -561,8 +487,7 @@ class _ChatScreenState extends State<ChatScreen> {
     Map<String, dynamic> recipe,
   ) async {
     try {
-      final user =
-          FirebaseAuth.instance.currentUser;
+      final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
         debugPrint(
@@ -632,17 +557,23 @@ class _ChatScreenState extends State<ChatScreen> {
       // ACTUALIZAR CONTADOR DEL USUARIO
       // ========================================================
 
-      await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .update({
-        'recetasGeneradas':
-            FieldValue.increment(1),
-      });
+      try {
+        await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .update({
+          'recetasGeneradas':
+              FieldValue.increment(1),
+        });
 
-      debugPrint(
-        'Contador recetasGeneradas actualizado.',
-      );
+        debugPrint(
+          'Contador recetasGeneradas actualizado.',
+        );
+      } catch (e) {
+        debugPrint(
+          'No se pudo actualizar recetasGeneradas: $e',
+        );
+      }
 
       return recetaRef.id;
     } catch (e) {
@@ -662,12 +593,18 @@ class _ChatScreenState extends State<ChatScreen> {
     Map<String, dynamic> recipe,
   ) async {
     try {
-      final user =
-          FirebaseAuth.instance.currentUser;
+      final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
-        debugPrint(
-          'No hay usuario autenticado.',
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '⚠️ Debes iniciar sesión para guardar recetas.',
+            ),
+            backgroundColor: Color(0xFFF39C12),
+          ),
         );
 
         return;
@@ -677,13 +614,19 @@ class _ChatScreenState extends State<ChatScreen> {
       // OBTENER ID DIRECTO
       // ========================================================
 
-      final recetaId =
-          recipe['recetaId'];
+      final recetaId = recipe['recetaId'];
 
       if (recetaId == null ||
           recetaId.toString().isEmpty) {
-        debugPrint(
-          'ERROR: La receta no tiene recetaId.',
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '❌ La receta no tiene un ID válido.',
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
 
         return;
@@ -719,8 +662,7 @@ class _ChatScreenState extends State<ChatScreen> {
             content: Text(
               '⚠️ Esta receta ya está en favoritos',
             ),
-            backgroundColor:
-                Color(0xFFF39C12),
+            backgroundColor: Color(0xFFF39C12),
           ),
         );
 
@@ -748,17 +690,23 @@ class _ChatScreenState extends State<ChatScreen> {
       // ACTUALIZAR CONTADOR
       // ========================================================
 
-      await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .update({
-        'recetasGuardadas':
-            FieldValue.increment(1),
-      });
+      try {
+        await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .update({
+          'recetasGuardadas':
+              FieldValue.increment(1),
+        });
 
-      debugPrint(
-        'Contador recetasGuardadas actualizado.',
-      );
+        debugPrint(
+          'Contador recetasGuardadas actualizado.',
+        );
+      } catch (e) {
+        debugPrint(
+          'No se pudo actualizar recetasGuardadas: $e',
+        );
+      }
 
       if (!mounted) return;
 
@@ -767,8 +715,7 @@ class _ChatScreenState extends State<ChatScreen> {
           content: Text(
             '❤️ Receta guardada en favoritos',
           ),
-          backgroundColor:
-              Color(0xFF2ECC71),
+          backgroundColor: Color(0xFF2ECC71),
         ),
       );
     } catch (e) {
@@ -1049,6 +996,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: ListView.builder(
               controller:
                   _scrollController,
+
               padding:
                   const EdgeInsets.all(16),
 
@@ -1101,30 +1049,34 @@ class _ChatScreenState extends State<ChatScreen> {
                 // ================================================
 
                 if (isRecipe) {
+                  final recipeData =
+                      msg['recipeData']
+                          as Map<String, dynamic>;
+
                   return _RecipeBubble(
                     recipeData:
-                        msg['recipeData'],
+                        recipeData,
 
                     onCook:
                         () =>
                             _goToCookingMode(
-                      msg['recipeData'],
+                      recipeData,
                     ),
 
                     onSave:
                         () =>
                             _saveRecipe(
-                      msg['recipeData'],
+                      recipeData,
                     ),
 
                     onPublish:
                         () =>
                             _publishRecipe(
-                      msg['recipeData'],
+                      recipeData,
                     ),
 
                     time:
-                        msg['time'],
+                        msg['time'] ?? '',
                   );
                 }
 
@@ -1407,23 +1359,19 @@ class _ChatScreenState extends State<ChatScreen> {
 // BURBUJA NORMAL DEL CHAT
 // ================================================================
 
-class _ChatBubble
-    extends StatelessWidget {
+class _ChatBubble extends StatelessWidget {
   final String message;
   final File? image;
   final bool isUser;
   final String time;
 
-  final List<String>?
-      detectedIngredients;
+  final List<String>? detectedIngredients;
 
   final bool actionTaken;
 
-  final VoidCallback?
-      onConfirm;
+  final VoidCallback? onConfirm;
 
-  final VoidCallback?
-      onEdit;
+  final VoidCallback? onEdit;
 
   const _ChatBubble({
     required this.message,
@@ -1445,23 +1393,19 @@ class _ChatBubble
           const EdgeInsets.only(
         bottom: 12,
       ),
-
       child: Column(
         crossAxisAlignment:
             isUser
                 ? CrossAxisAlignment.end
                 : CrossAxisAlignment.start,
-
         children: [
           Row(
             mainAxisAlignment:
                 isUser
                     ? MainAxisAlignment.end
                     : MainAxisAlignment.start,
-
             crossAxisAlignment:
                 CrossAxisAlignment.end,
-
             children: [
               // ==================================================
               // AVATAR AMELIA
@@ -1470,29 +1414,22 @@ class _ChatBubble
               if (!isUser)
                 CircleAvatar(
                   radius: 16,
-
                   backgroundColor:
-                      const Color(
-                    0xFF2ECC71,
-                  ),
-
+                      const Color(0xFF2ECC71),
                   backgroundImage:
                       const AssetImage(
                     'assets/amelia.jpg',
                   ),
-
                   onBackgroundImageError:
                       (
                     error,
                     stackTrace,
                   ) {},
-
                   child:
                       const Icon(
                     Icons.room_service,
                     size: 16,
-                    color:
-                        Colors.white,
+                    color: Colors.white,
                   ),
                 ),
 
@@ -1511,7 +1448,6 @@ class _ChatBubble
                       const EdgeInsets.all(
                     14,
                   ),
-
                   decoration:
                       BoxDecoration(
                     color:
@@ -1520,26 +1456,22 @@ class _ChatBubble
                                 0xFF2ECC71,
                               )
                             : Colors.white,
-
                     borderRadius:
                         BorderRadius.only(
                       topLeft:
                           const Radius.circular(
                         16,
                       ),
-
                       topRight:
                           const Radius.circular(
                         16,
                       ),
-
                       bottomLeft:
                           isUser
                               ? const Radius.circular(
                                   16,
                                 )
                               : Radius.zero,
-
                       bottomRight:
                           isUser
                               ? Radius.zero
@@ -1547,7 +1479,6 @@ class _ChatBubble
                                   16,
                                 ),
                     ),
-
                     boxShadow:
                         const [
                       BoxShadow(
@@ -1560,11 +1491,9 @@ class _ChatBubble
                       ),
                     ],
                   ),
-
                   child: Column(
                     crossAxisAlignment:
                         CrossAxisAlignment.start,
-
                     children: [
                       // ==========================================
                       // IMAGEN
@@ -1576,7 +1505,6 @@ class _ChatBubble
                               BorderRadius.circular(
                             12,
                           ),
-
                           child:
                               Image.file(
                             image!,
@@ -1605,18 +1533,15 @@ class _ChatBubble
                         Align(
                           alignment:
                               Alignment.centerLeft,
-
                           child:
                               Text(
                             message,
-
                             style:
                                 TextStyle(
                               color:
                                   isUser
                                       ? Colors.white
                                       : Colors.black87,
-
                               fontSize:
                                   15,
                             ),
@@ -1634,18 +1559,15 @@ class _ChatBubble
                       Align(
                         alignment:
                             Alignment.bottomRight,
-
                         child:
                             Text(
                           time,
-
                           style:
                               TextStyle(
                             color:
                                 isUser
                                     ? Colors.white70
                                     : Colors.grey,
-
                             fontSize:
                                 10,
                           ),
@@ -1668,20 +1590,14 @@ class _ChatBubble
               if (isUser)
                 const CircleAvatar(
                   backgroundColor:
-                      Color(
-                    0xFFFDFBF7,
-                  ),
-
+                      Color(0xFFFDFBF7),
                   radius: 16,
-
                   child:
                       Icon(
                     Icons.person,
                     size: 16,
                     color:
-                        Color(
-                      0xFF2ECC71,
-                    ),
+                        Color(0xFF2ECC71),
                   ),
                 ),
             ],
@@ -1691,25 +1607,20 @@ class _ChatBubble
           // BOTONES INGREDIENTES
           // ========================================================
 
-          if (detectedIngredients !=
-                  null &&
-              detectedIngredients!
-                  .isNotEmpty) ...[
+          if (detectedIngredients != null &&
+              detectedIngredients!.isNotEmpty) ...[
             const SizedBox(
               height: 8,
             ),
-
             Padding(
               padding:
                   const EdgeInsets.only(
                 left: 40,
               ),
-
               child:
                   Wrap(
                 spacing: 8,
                 runSpacing: 6,
-
                 children: [
                   // ==============================================
                   // CONFIRMAR
@@ -1718,53 +1629,39 @@ class _ChatBubble
                   ActionChip(
                     avatar:
                         Icon(
-                      Icons
-                          .check_circle_outline,
-
+                      Icons.check_circle_outline,
                       size: 16,
-
                       color:
                           actionTaken
-                              ? Colors
-                                  .grey
-                                  .shade500
+                              ? Colors.grey.shade500
                               : Colors.white,
                     ),
-
                     label:
                         Text(
                       'Confirmar',
-
                       style:
                           TextStyle(
                         color:
                             actionTaken
-                                ? Colors
-                                    .grey
-                                    .shade500
+                                ? Colors.grey.shade500
                                 : Colors.white,
-
-                        fontSize:
-                            12,
-
+                        fontSize: 12,
                         fontWeight:
                             FontWeight.bold,
                       ),
                     ),
-
                     backgroundColor:
                         actionTaken
-                            ? Colors
-                                .grey
-                                .shade200
+                            ? Colors.grey.shade200
                             : const Color(
                                 0xFF2ECC71,
                               ),
-
                     onPressed:
                         actionTaken
                             ? null
-                            : onConfirm,
+                            : () {
+                                onConfirm?.call();
+                              },
                   ),
 
                   // ==============================================
@@ -1774,66 +1671,50 @@ class _ChatBubble
                   ActionChip(
                     avatar:
                         Icon(
-                      Icons
-                          .edit_outlined,
-
+                      Icons.edit_outlined,
                       size: 16,
-
                       color:
                           actionTaken
-                              ? Colors
-                                  .grey
-                                  .shade500
+                              ? Colors.grey.shade500
                               : const Color(
                                   0xFF27AE60,
                                 ),
                     ),
-
                     label:
                         Text(
                       'Editar',
-
                       style:
                           TextStyle(
                         color:
                             actionTaken
-                                ? Colors
-                                    .grey
-                                    .shade500
+                                ? Colors.grey.shade500
                                 : const Color(
                                     0xFF27AE60,
                                   ),
-
-                        fontSize:
-                            12,
+                        fontSize: 12,
                       ),
                     ),
-
                     backgroundColor:
                         actionTaken
-                            ? Colors
-                                .grey
-                                .shade100
+                            ? Colors.grey.shade100
                             : const Color(
                                 0xFFE8F8F0,
                               ),
-
                     side:
                         BorderSide(
                       color:
                           actionTaken
-                              ? Colors
-                                  .grey
-                                  .shade300
+                              ? Colors.grey.shade300
                               : const Color(
                                   0xFF2ECC71,
                                 ),
                     ),
-
                     onPressed:
                         actionTaken
                             ? null
-                            : onEdit,
+                            : () {
+                                onEdit?.call();
+                              },
                   ),
                 ],
               ),
@@ -1849,8 +1730,7 @@ class _ChatBubble
 // INDICADOR "AMELIA ESTÁ ESCRIBIENDO"
 // ================================================================
 
-class _TypingBubble
-    extends StatelessWidget {
+class _TypingBubble extends StatelessWidget {
   final String text;
 
   const _TypingBubble({
@@ -1868,28 +1748,23 @@ class _TypingBubble
         left: 40,
         bottom: 12,
       ),
-
       child: Align(
         alignment:
             Alignment.centerLeft,
-
         child: Container(
           padding:
               const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 10,
           ),
-
           decoration:
               BoxDecoration(
             color:
                 Colors.white,
-
             borderRadius:
                 BorderRadius.circular(
               16,
             ),
-
             boxShadow:
                 const [
               BoxShadow(
@@ -1902,36 +1777,28 @@ class _TypingBubble
               ),
             ],
           ),
-
           child:
               Row(
             mainAxisSize:
                 MainAxisSize.min,
-
             children: [
               const SizedBox(
                 width: 14,
                 height: 14,
-
                 child:
                     CircularProgressIndicator(
                   strokeWidth: 2,
                   color:
-                      Color(
-                    0xFF2ECC71,
-                  ),
+                      Color(0xFF2ECC71),
                 ),
               ),
-
               const SizedBox(
                 width: 10,
               ),
-
               Flexible(
                 child:
                     Text(
                   text,
-
                   style:
                       const TextStyle(
                     color:
@@ -1953,10 +1820,8 @@ class _TypingBubble
 // BURBUJA DE RECETA
 // ================================================================
 
-class _RecipeBubble
-    extends StatelessWidget {
-  final Map<String, dynamic>
-      recipeData;
+class _RecipeBubble extends StatelessWidget {
+  final Map<String, dynamic> recipeData;
 
   final VoidCallback onCook;
   final VoidCallback onSave;
@@ -1978,21 +1843,17 @@ class _RecipeBubble
   ) {
     final ingredients =
         List<String>.from(
-      recipeData['ingredients'] ??
-          [],
+      recipeData['ingredients'] ?? [],
     );
 
     final optionalIngredients =
         List<String>.from(
-      recipeData[
-              'optionalIngredients'] ??
-          [],
+      recipeData['optionalIngredients'] ?? [],
     );
 
     final preparation =
         List<String>.from(
-      recipeData['preparation'] ??
-          [],
+      recipeData['preparation'] ?? [],
     );
 
     final name =
@@ -2027,11 +1888,9 @@ class _RecipeBubble
           const EdgeInsets.only(
         bottom: 16,
       ),
-
       child: Row(
         crossAxisAlignment:
             CrossAxisAlignment.start,
-
         children: [
           // ======================================================
           // AVATAR AMELIA
@@ -2039,23 +1898,17 @@ class _RecipeBubble
 
           CircleAvatar(
             radius: 16,
-
             backgroundColor:
-                const Color(
-              0xFF2ECC71,
-            ),
-
+                const Color(0xFF2ECC71),
             backgroundImage:
                 const AssetImage(
               'assets/amelia.jpg',
             ),
-
             onBackgroundImageError:
                 (
               error,
               stackTrace,
             ) {},
-
             child:
                 const Icon(
               Icons.room_service,
@@ -2079,17 +1932,14 @@ class _RecipeBubble
                   const EdgeInsets.all(
                 16,
               ),
-
               decoration:
                   BoxDecoration(
                 color:
                     Colors.white,
-
                 borderRadius:
                     BorderRadius.circular(
                   16,
                 ),
-
                 boxShadow:
                     const [
                   BoxShadow(
@@ -2101,7 +1951,6 @@ class _RecipeBubble
                         Offset(0, 2),
                   ),
                 ],
-
                 border:
                     Border.all(
                   color:
@@ -2111,12 +1960,10 @@ class _RecipeBubble
                   width: 2,
                 ),
               ),
-
               child:
                   Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
-
                 children: [
                   // ==================================================
                   // NOMBRE
@@ -2124,7 +1971,6 @@ class _RecipeBubble
 
                   Text(
                     '🍽️ $name',
-
                     style:
                         const TextStyle(
                       fontSize:
@@ -2147,10 +1993,10 @@ class _RecipeBubble
                   // ==================================================
 
                   if (description
+                      .toString()
                       .isNotEmpty) ...[
                     Text(
-                      description,
-
+                      description.toString(),
                       style:
                           const TextStyle(
                         fontSize:
@@ -2161,7 +2007,6 @@ class _RecipeBubble
                             Colors.black87,
                       ),
                     ),
-
                     const SizedBox(
                       height: 12,
                     ),
@@ -2174,10 +2019,8 @@ class _RecipeBubble
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-
                     children: [
-                      if (servings !=
-                          null)
+                      if (servings != null)
                         _InfoChip(
                           icon:
                               Icons.people,
@@ -2192,7 +2035,7 @@ class _RecipeBubble
                           icon:
                               Icons.timer,
                           text:
-                              recipeTime,
+                              recipeTime.toString(),
                         ),
 
                       if (difficulty
@@ -2200,10 +2043,9 @@ class _RecipeBubble
                           .isNotEmpty)
                         _InfoChip(
                           icon:
-                              Icons
-                                  .signal_cellular_alt,
+                              Icons.signal_cellular_alt,
                           text:
-                              difficulty,
+                              difficulty.toString(),
                         ),
                     ],
                   ),
@@ -2218,7 +2060,6 @@ class _RecipeBubble
 
                   const Text(
                     '🥘 Ingredientes',
-
                     style:
                         TextStyle(
                       fontWeight:
@@ -2247,13 +2088,11 @@ class _RecipeBubble
                         vertical:
                             3,
                       ),
-
                       child:
                           Row(
                         crossAxisAlignment:
                             CrossAxisAlignment
                                 .start,
-
                         children: [
                           const Icon(
                             Icons.circle,
@@ -2264,17 +2103,14 @@ class _RecipeBubble
                               0xFF2ECC71,
                             ),
                           ),
-
                           const SizedBox(
                             width:
                                 8,
                           ),
-
                           Expanded(
                             child:
                                 Text(
                               ingredient,
-
                               style:
                                   const TextStyle(
                                 fontSize:
@@ -2296,10 +2132,8 @@ class _RecipeBubble
                     const SizedBox(
                       height: 10,
                     ),
-
                     const Text(
                       '✨ Ingredientes opcionales',
-
                       style:
                           TextStyle(
                         fontWeight:
@@ -2308,13 +2142,10 @@ class _RecipeBubble
                             14,
                       ),
                     ),
-
                     const SizedBox(
                       height: 4,
                     ),
-
-                    ...optionalIngredients
-                        .map(
+                    ...optionalIngredients.map(
                       (
                         ingredient,
                       ) =>
@@ -2325,13 +2156,11 @@ class _RecipeBubble
                           vertical:
                               2,
                         ),
-
                         child:
                             Row(
                           crossAxisAlignment:
                               CrossAxisAlignment
                                   .start,
-
                           children: [
                             const Icon(
                               Icons
@@ -2343,17 +2172,14 @@ class _RecipeBubble
                                 0xFFF39C12,
                               ),
                             ),
-
                             const SizedBox(
                               width:
                                   8,
                             ),
-
                             Expanded(
                               child:
                                   Text(
                                 ingredient,
-
                                 style:
                                     const TextStyle(
                                   fontSize:
@@ -2377,7 +2203,6 @@ class _RecipeBubble
 
                   const Text(
                     '👩‍🍳 Preparación',
-
                     style:
                         TextStyle(
                       fontWeight:
@@ -2407,20 +2232,17 @@ class _RecipeBubble
                           bottom:
                               8,
                         ),
-
                         child:
                             Row(
                           crossAxisAlignment:
                               CrossAxisAlignment
                                   .start,
-
                           children: [
                             Container(
                               width:
                                   26,
                               height:
                                   26,
-
                               decoration:
                                   const BoxDecoration(
                                 color:
@@ -2431,13 +2253,11 @@ class _RecipeBubble
                                     BoxShape
                                         .circle,
                               ),
-
                               child:
                                   Center(
                                 child:
                                     Text(
                                   '${index + 1}',
-
                                   style:
                                       const TextStyle(
                                     color:
@@ -2448,18 +2268,15 @@ class _RecipeBubble
                                 ),
                               ),
                             ),
-
                             const SizedBox(
                               width:
                                   10,
                             ),
-
                             Expanded(
                               child:
                                   Text(
                                 preparation[
                                     index],
-
                                 style:
                                     const TextStyle(
                                   fontSize:
@@ -2485,35 +2302,29 @@ class _RecipeBubble
                     const SizedBox(
                       height: 8,
                     ),
-
                     Container(
                       width:
                           double.infinity,
-
                       padding:
                           const EdgeInsets
                               .all(
                         12,
                       ),
-
                       decoration:
                           BoxDecoration(
                         color:
                             const Color(
                           0xFFFFF8E7,
                         ),
-
                         borderRadius:
                             BorderRadius.circular(
                           10,
                         ),
                       ),
-
                       child:
                           Text(
                         '💡 Consejo de Amelia\n'
-                        '$advice',
-
+                        '${advice.toString()}',
                         style:
                             const TextStyle(
                           fontSize:
@@ -2541,8 +2352,7 @@ class _RecipeBubble
 
                       Expanded(
                         child:
-                            ElevatedButton
-                                .icon(
+                            ElevatedButton.icon(
                           style:
                               ElevatedButton
                                   .styleFrom(
@@ -2550,14 +2360,12 @@ class _RecipeBubble
                                 const Color(
                               0xFF2ECC71,
                             ),
-
                             padding:
                                 const EdgeInsets
                                     .symmetric(
                               vertical:
                                   10,
                             ),
-
                             shape:
                                 RoundedRectangleBorder(
                               borderRadius:
@@ -2566,7 +2374,6 @@ class _RecipeBubble
                               ),
                             ),
                           ),
-
                           icon:
                               const Icon(
                             Icons.chat,
@@ -2575,11 +2382,9 @@ class _RecipeBubble
                             size:
                                 18,
                           ),
-
                           label:
                               const Text(
                             'Modo Cocinar',
-
                             style:
                                 TextStyle(
                               color:
@@ -2590,15 +2395,13 @@ class _RecipeBubble
                                   FontWeight.bold,
                             ),
                           ),
-
                           onPressed:
                               onCook,
                         ),
                       ),
 
                       const SizedBox(
-                        width:
-                            8,
+                        width: 8,
                       ),
 
                       // ==============================================
@@ -2607,8 +2410,7 @@ class _RecipeBubble
 
                       Expanded(
                         child:
-                            OutlinedButton
-                                .icon(
+                            OutlinedButton.icon(
                           style:
                               OutlinedButton
                                   .styleFrom(
@@ -2619,14 +2421,12 @@ class _RecipeBubble
                                 0xFFF39C12,
                               ),
                             ),
-
                             padding:
                                 const EdgeInsets
                                     .symmetric(
                               vertical:
                                   10,
                             ),
-
                             shape:
                                 RoundedRectangleBorder(
                               borderRadius:
@@ -2635,40 +2435,32 @@ class _RecipeBubble
                               ),
                             ),
                           ),
-
                           icon:
                               const Icon(
                             Icons
                                 .favorite_border,
-
                             color:
                                 Color(
                               0xFFF39C12,
                             ),
-
                             size:
                                 18,
                           ),
-
                           label:
                               const Text(
                             'Guardar',
-
                             style:
                                 TextStyle(
                               color:
                                   Color(
                                 0xFFF39C12,
                               ),
-
                               fontSize:
                                   12,
-
                               fontWeight:
                                   FontWeight.bold,
                             ),
                           ),
-
                           onPressed:
                               onSave,
                         ),
@@ -2687,7 +2479,6 @@ class _RecipeBubble
                   SizedBox(
                     width:
                         double.infinity,
-
                     child:
                         OutlinedButton.icon(
                       style:
@@ -2697,20 +2488,17 @@ class _RecipeBubble
                             BorderSide(
                           color:
                               publicadaEnForo
-                                  ? Colors
-                                      .grey
+                                  ? Colors.grey
                                   : const Color(
                                       0xFF27AE60,
                                     ),
                         ),
-
                         padding:
                             const EdgeInsets
                                 .symmetric(
                           vertical:
                               10,
                         ),
-
                         shape:
                             RoundedRectangleBorder(
                           borderRadius:
@@ -2719,7 +2507,6 @@ class _RecipeBubble
                           ),
                         ),
                       ),
-
                       icon:
                           Icon(
                         publicadaEnForo
@@ -2727,43 +2514,34 @@ class _RecipeBubble
                                 .check_circle_outline
                             : Icons
                                 .forum_outlined,
-
                         color:
                             publicadaEnForo
-                                ? Colors
-                                    .grey
+                                ? Colors.grey
                                 : const Color(
                                     0xFF27AE60,
                                   ),
-
                         size:
                             18,
                       ),
-
                       label:
                           Text(
                         publicadaEnForo
                             ? 'Publicada en foro'
                             : 'Publicar en foro',
-
                         style:
                             TextStyle(
                           color:
                               publicadaEnForo
-                                  ? Colors
-                                      .grey
+                                  ? Colors.grey
                                   : const Color(
                                       0xFF27AE60,
                                     ),
-
                           fontSize:
                               12,
-
                           fontWeight:
                               FontWeight.bold,
                         ),
                       ),
-
                       onPressed:
                           publicadaEnForo
                               ? null
@@ -2782,11 +2560,9 @@ class _RecipeBubble
                   Align(
                     alignment:
                         Alignment.centerRight,
-
                     child:
                         Text(
                       time,
-
                       style:
                           const TextStyle(
                         color:
@@ -2810,8 +2586,7 @@ class _RecipeBubble
 // INFO CHIP
 // ================================================================
 
-class _InfoChip
-    extends StatelessWidget {
+class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String text;
 
@@ -2830,25 +2605,21 @@ class _InfoChip
         horizontal: 10,
         vertical: 6,
       ),
-
       decoration:
           BoxDecoration(
         color:
             const Color(
           0xFFF1F8F4,
         ),
-
         borderRadius:
             BorderRadius.circular(
           20,
         ),
       ),
-
       child:
           Row(
         mainAxisSize:
             MainAxisSize.min,
-
         children: [
           Icon(
             icon,
@@ -2859,15 +2630,12 @@ class _InfoChip
               0xFF27AE60,
             ),
           ),
-
           const SizedBox(
             width:
                 5,
           ),
-
           Text(
             text,
-
             style:
                 const TextStyle(
               fontSize:

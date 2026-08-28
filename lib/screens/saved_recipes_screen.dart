@@ -396,6 +396,10 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
                               recipe['ingredients'],
                             ),
                             instructions: recipe['instructions'],
+
+                            // Pasamos la receta completa
+                            recipe: recipe,
+
                           ),
                         ),
                       );
