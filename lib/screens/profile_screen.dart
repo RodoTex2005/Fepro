@@ -3,8 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+
 import 'saved_recipes_screen.dart';
 import 'frames_screen.dart';
+import 'forum_screen.dart';
+import 'step_by_step_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -22,6 +25,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int recetasGeneradas = 0;
   int likesTotales = 0;
   int recetasGuardadas = 0;
+
   String nombreUsuario = 'Usuario';
   String correoUsuario = '';
 
@@ -81,7 +85,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'requirement': '100 recetas guardadas',
       'unlocked': false,
       'gradient': const LinearGradient(
-        colors: [Color(0xFFFFD700), Color(0xFFFF6B35)],
+        colors: [
+          Color(0xFFFFD700),
+          Color(0xFFFF6B35),
+        ],
       ),
     },
   ];
@@ -89,6 +96,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+
     _loadUserData();
     _loadBadges();
     _loadSelectedFrame();
@@ -111,14 +119,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _cargandoEstadisticas = false;
           });
         }
+
         return;
       }
 
-      print('Cargando estadísticas del usuario: ${user.uid}');
+      print(
+        'Cargando estadísticas del usuario: ${user.uid}',
+      );
 
-      // ============================================================
+      // ========================================================
       // OBTENER DATOS DEL USUARIO
-      // ============================================================
+      // ========================================================
 
       final documento = await FirebaseFirestore.instance
           .collection('usuarios')
@@ -126,13 +137,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .get();
 
       if (!documento.exists) {
-        print('El documento del usuario no existe en Firestore.');
+        print(
+          'El documento del usuario no existe en Firestore.',
+        );
 
         if (mounted) {
           setState(() {
             _cargandoEstadisticas = false;
           });
         }
+
         return;
       }
 
@@ -140,14 +154,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       print('Datos encontrados: $datos');
 
-      // ============================================================
+      // ========================================================
       // CONTAR RECETAS GUARDADAS REALES
-      // ============================================================
+      // ========================================================
 
-      final recetasGuardadasQuery = await FirebaseFirestore.instance
-          .collection('recetas_guardadas')
-          .where('uid', isEqualTo: user.uid)
-          .get();
+      final recetasGuardadasQuery =
+          await FirebaseFirestore.instance
+              .collection('recetas_guardadas')
+              .where(
+                'uid',
+                isEqualTo: user.uid,
+              )
+              .get();
 
       final cantidadRecetasGuardadas =
           recetasGuardadasQuery.docs.length;
@@ -157,36 +175,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
         '$cantidadRecetasGuardadas',
       );
 
-      // ============================================================
+      // ========================================================
       // ACTUALIZAR ESTADÍSTICAS EN PANTALLA
-      // ============================================================
+      // ========================================================
 
       if (mounted) {
         setState(() {
-          nombreUsuario = datos['usuario'] ?? 'Usuario';
-          correoUsuario = datos['correo'] ?? '';
+          nombreUsuario =
+              datos['usuario']?.toString() ??
+                  datos['nombre']?.toString() ??
+                  'Usuario';
 
-          recetasGeneradas = datos['recetasGeneradas'] ?? 0;
-          likesTotales = datos['likesRecibidos'] ?? 0;
+          correoUsuario =
+              datos['correo']?.toString() ??
+                  '';
 
-          // Se utiliza la cantidad REAL de documentos
-          // existentes en recetas_guardadas.
-          recetasGuardadas = cantidadRecetasGuardadas;
+          recetasGeneradas =
+              datos['recetasGeneradas'] ?? 0;
+
+          likesTotales =
+              datos['likesRecibidos'] ?? 0;
+
+          recetasGuardadas =
+              cantidadRecetasGuardadas;
 
           _cargandoEstadisticas = false;
         });
       }
 
-      // ============================================================
-      // SINCRONIZAR CONTADOR EN USUARIOS
-      // ============================================================
+      // ========================================================
+      // SINCRONIZAR CONTADOR DE RECETAS GUARDADAS
+      // ========================================================
 
-      if (datos['recetasGuardadas'] != cantidadRecetasGuardadas) {
+      if (datos['recetasGuardadas'] !=
+          cantidadRecetasGuardadas) {
         await FirebaseFirestore.instance
             .collection('usuarios')
             .doc(user.uid)
             .update({
-          'recetasGuardadas': cantidadRecetasGuardadas,
+          'recetasGuardadas':
+              cantidadRecetasGuardadas,
         });
 
         print(
@@ -195,7 +223,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     } catch (e) {
-      print('ERROR AL CARGAR ESTADÍSTICAS: $e');
+      print(
+        'ERROR AL CARGAR ESTADÍSTICAS: $e',
+      );
 
       if (mounted) {
         setState(() {
@@ -210,12 +240,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ============================================================
 
   Future<void> _loadBadges() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? badgesJson = prefs.getString('user_badges');
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    final String? badgesJson =
+        prefs.getString('user_badges');
 
     if (badgesJson != null) {
       final List<String> badges =
-          List<String>.from(json.decode(badgesJson));
+          List<String>.from(
+        json.decode(badgesJson),
+      );
 
       if (!mounted) return;
 
@@ -224,7 +259,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         for (var frame in availableFrames) {
           if (frame['id'] != 'classic') {
-            frame['unlocked'] = badges.contains(frame['id']);
+            frame['unlocked'] =
+                badges.contains(frame['id']);
           }
         }
       });
@@ -237,7 +273,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user =
+          FirebaseAuth.instance.currentUser;
 
       if (user == null) {
         if (mounted) {
@@ -245,13 +282,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _isLoadingUser = false;
           });
         }
+
         return;
       }
 
-      final document = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .get();
+      final document =
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(user.uid)
+              .get();
 
       if (!mounted) return;
 
@@ -266,7 +305,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
     } catch (e) {
-      print('ERROR AL CARGAR USUARIO: $e');
+      print(
+        'ERROR AL CARGAR USUARIO: $e',
+      );
 
       if (mounted) {
         setState(() {
@@ -281,8 +322,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ============================================================
 
   Future<void> _loadSelectedFrame() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? frame = prefs.getString('selected_frame');
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    final String? frame =
+        prefs.getString('selected_frame');
 
     if (frame != null && mounted) {
       setState(() {
@@ -297,7 +341,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   BoxDecoration _getAvatarDecoration() {
     final frame =
-        availableFrames.firstWhere((f) => f['id'] == selectedFrame);
+        availableFrames.firstWhere(
+      (f) => f['id'] == selectedFrame,
+    );
 
     if (frame['gradient'] != null) {
       return BoxDecoration(
@@ -305,7 +351,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         gradient: frame['gradient'],
         boxShadow: [
           BoxShadow(
-            color: (frame['color'] as Color).withOpacity(0.5),
+            color:
+                (frame['color'] as Color)
+                    .withOpacity(0.5),
             blurRadius: 16,
             spreadRadius: 4,
           ),
@@ -315,14 +363,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return BoxDecoration(
       shape: BoxShape.circle,
-      color: frame['color'] as Color? ?? Colors.grey,
+      color:
+          frame['color'] as Color? ??
+              Colors.grey,
       boxShadow: [
         BoxShadow(
-          color: (frame['color'] as Color).withOpacity(0.4),
+          color:
+              (frame['color'] as Color)
+                  .withOpacity(0.4),
           blurRadius: 8,
           spreadRadius: 2,
         ),
       ],
+    );
+  }
+
+  // ============================================================
+  // ABRIR HISTORIAL DE AMELIA
+  // ============================================================
+
+  Future<void> _abrirHistorialAmelia() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const AmeliaHistoryScreen(),
+      ),
     );
   }
 
@@ -334,52 +400,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2ECC71),
+        backgroundColor:
+            const Color(0xFF2ECC71),
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
-      backgroundColor: const Color(0xFFFFF8F0),
+
+      backgroundColor:
+          const Color(0xFFFFF8F0),
+
       body: ListView(
         children: [
-          // ========================================================
+          // ======================================================
           // HEADER
-          // ========================================================
+          // ======================================================
 
           Container(
-            padding: const EdgeInsets.all(32),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+            padding:
+                const EdgeInsets.all(32),
+
+            decoration:
+                const BoxDecoration(
+              gradient:
+                  LinearGradient(
+                begin:
+                    Alignment.topLeft,
+                end:
+                    Alignment.bottomRight,
                 colors: [
                   Color(0xFF2ECC71),
                   Color(0xFF27AE60),
                 ],
               ),
             ),
+
             child: Column(
               children: [
-                const SizedBox(height: 20),
+                const SizedBox(
+                  height: 20,
+                ),
 
                 // ==================================================
                 // AVATAR
                 // ==================================================
 
                 Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: _getAvatarDecoration(),
-                  child: const CircleAvatar(
+                  padding:
+                      const EdgeInsets.all(6),
+
+                  decoration:
+                      _getAvatarDecoration(),
+
+                  child:
+                      const CircleAvatar(
                     radius: 50,
-                    backgroundColor: Colors.white,
+                    backgroundColor:
+                        Colors.white,
+
                     child: Icon(
                       Icons.person,
                       size: 50,
-                      color: Color(0xFF2ECC71),
+                      color:
+                          Color(0xFF2ECC71),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(
+                  height: 16,
+                ),
 
                 // ==================================================
                 // NOMBRE
@@ -387,24 +476,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 Text(
                   nombreUsuario,
-                  style: const TextStyle(
+
+                  style:
+                      const TextStyle(
                     fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    fontWeight:
+                        FontWeight.bold,
+                    color:
+                        Colors.white,
                   ),
                 ),
 
-                const SizedBox(height: 4),
+                const SizedBox(
+                  height: 4,
+                ),
 
                 const Text(
                   '🍳 Amante de la cocina',
-                  style: TextStyle(
+
+                  style:
+                      TextStyle(
                     fontSize: 16,
-                    color: Colors.white70,
+                    color:
+                        Colors.white70,
                   ),
                 ),
 
-                const SizedBox(height: 4),
+                const SizedBox(
+                  height: 4,
+                ),
 
                 // ==================================================
                 // CORREO
@@ -412,112 +512,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 Text(
                   correoUsuario,
-                  style: const TextStyle(
+
+                  style:
+                      const TextStyle(
                     fontSize: 15,
-                    color: Colors.white70,
+                    color:
+                        Colors.white70,
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(
+                  height: 20,
+                ),
 
                 // ==================================================
                 // ESTADÍSTICAS
                 // ==================================================
 
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  mainAxisAlignment:
+                      MainAxisAlignment
+                          .spaceEvenly,
+
                   children: [
                     _StatItem(
                       'Recetas',
                       _cargandoEstadisticas
                           ? '...'
-                          : recetasGeneradas.toString(),
+                          : recetasGeneradas
+                              .toString(),
                     ),
+
                     _StatItem(
                       'Likes totales',
                       _cargandoEstadisticas
                           ? '...'
-                          : likesTotales.toString(),
+                          : likesTotales
+                              .toString(),
                     ),
+
                     _StatItem(
                       'Guardadas',
                       _cargandoEstadisticas
                           ? '...'
-                          : recetasGuardadas.toString(),
+                          : recetasGuardadas
+                              .toString(),
                     ),
                   ],
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(
+                  height: 16,
+                ),
 
                 const _BadgesSection(),
               ],
             ),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(
+            height: 8,
+          ),
 
-          // ========================================================
+          // ======================================================
           // OPCIONES
-          // ========================================================
+          // ======================================================
 
           _ProfileOption(
             icon: Icons.palette,
-            title: 'Personalizar Marco',
-            iconColor: const Color(0xFF2ECC71),
+            title:
+                'Personalizar Marco',
+            iconColor:
+                const Color(0xFF2ECC71),
+
             onTap: () async {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const FramesScreen(),
+                  builder: (_) =>
+                      const FramesScreen(),
                 ),
               );
 
-              // Recargar estadísticas al regresar.
               _cargarEstadisticas();
             },
           ),
 
           _ProfileOption(
             icon: Icons.favorite,
-            title: 'Mis Recetas Favoritas',
-            iconColor: const Color(0xFFF39C12),
+            title:
+                'Mis Recetas Favoritas',
+            iconColor:
+                const Color(0xFFF39C12),
+
             onTap: () async {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const SavedRecipesScreen(),
+                  builder: (_) =>
+                      const SavedRecipesScreen(),
                 ),
               );
 
-              // Recargar estadísticas al regresar.
               _cargarEstadisticas();
             },
           ),
 
+          // ======================================================
+          // HISTORIAL DE AMELIA
+          // ======================================================
+
           _ProfileOption(
             icon: Icons.history,
-            title: 'Historial de Amelia',
-            iconColor: const Color(0xFF2ECC71),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('💬 Historial de Amelia'),
-                  backgroundColor: Color(0xFF2ECC71),
-                ),
-              );
-            },
+            title:
+                'Historial de Amelia',
+            iconColor:
+                const Color(0xFF2ECC71),
+
+            onTap:
+                _abrirHistorialAmelia,
           ),
 
           _ProfileOption(
             icon: Icons.settings,
-            title: 'Configuración',
-            iconColor: const Color(0xFF2ECC71),
+            title:
+                'Configuración',
+            iconColor:
+                const Color(0xFF2ECC71),
+
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger
+                      .of(context)
+                  .showSnackBar(
                 const SnackBar(
-                  content: Text('⚙️ Configuración (sin funcionalidad)'),
-                  backgroundColor: Color(0xFF2ECC71),
+                  content: Text(
+                    '⚙️ Configuración '
+                    '(sin funcionalidad)',
+                  ),
+                  backgroundColor:
+                      Color(0xFF2ECC71),
                 ),
               );
             },
@@ -526,66 +659,123 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _ProfileOption(
             icon: Icons.help_outline,
             title: 'Ayuda',
-            iconColor: const Color(0xFF2ECC71),
+            iconColor:
+                const Color(0xFF2ECC71),
+
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger
+                      .of(context)
+                  .showSnackBar(
                 const SnackBar(
-                  content: Text('❓ Ayuda (sin funcionalidad)'),
-                  backgroundColor: Color(0xFF2ECC71),
+                  content: Text(
+                    '❓ Ayuda '
+                    '(sin funcionalidad)',
+                  ),
+                  backgroundColor:
+                      Color(0xFF2ECC71),
                 ),
               );
             },
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(
+            height: 20,
+          ),
 
-          // ========================================================
+          // ======================================================
           // CERRAR SESIÓN
-          // ========================================================
+          // ======================================================
 
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 24,
+            ),
+
             child: SizedBox(
               width: double.infinity,
               height: 50,
+
               child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.red),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                style:
+                    OutlinedButton.styleFrom(
+                  side:
+                      const BorderSide(
+                    color: Colors.red,
+                  ),
+
+                  shape:
+                      RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(
+                      12,
+                    ),
                   ),
                 ),
+
                 child: const Text(
                   'Cerrar Sesión',
-                  style: TextStyle(
+
+                  style:
+                      TextStyle(
                     color: Colors.red,
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
+
                 onPressed: () {
                   showDialog(
                     context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('¿Cerrar sesión?'),
-                      content: const Text(
+
+                    builder: (_) =>
+                        AlertDialog(
+                      title: const Text(
+                        '¿Cerrar sesión?',
+                      ),
+
+                      content:
+                          const Text(
                         '¿Estás seguro de que quieres salir?',
                       ),
+
                       actions: [
                         TextButton(
-                          child: const Text('Cancelar'),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        TextButton(
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.red,
+                          child:
+                              const Text(
+                            'Cancelar',
                           ),
-                          child: const Text('Salir'),
-                          onPressed: () async {
-                            await FirebaseAuth.instance.signOut();
 
-                            if (context.mounted) {
-                              Navigator.pop(context);
+                          onPressed: () =>
+                              Navigator.pop(
+                            context,
+                          ),
+                        ),
+
+                        TextButton(
+                          style:
+                              TextButton.styleFrom(
+                            foregroundColor:
+                                Colors.red,
+                          ),
+
+                          child:
+                              const Text(
+                            'Salir',
+                          ),
+
+                          onPressed:
+                              () async {
+                            await FirebaseAuth
+                                .instance
+                                .signOut();
+
+                            if (context
+                                .mounted) {
+                              Navigator.pop(
+                                context,
+                              );
                             }
                           },
                         ),
@@ -597,8 +787,832 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
 
-          const SizedBox(height: 30),
+          const SizedBox(
+            height: 30,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+// ================================================================
+// HISTORIAL DE AMELIA
+// ================================================================
+
+class AmeliaHistoryScreen
+    extends StatelessWidget {
+  const AmeliaHistoryScreen({
+    super.key,
+  });
+
+  // ============================================================
+  // OBTENER TODAS LAS RECETAS DEL USUARIO
+  // ============================================================
+
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      _getMisRecetas() {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const Stream.empty();
+    }
+
+    // IMPORTANTE:
+    // Aquí NO usamos publicadaEnForo.
+    //
+    // Por lo tanto:
+    // - recetas publicadas -> aparecen
+    // - recetas no publicadas -> aparecen
+    //
+    // Solamente filtramos por el UID del usuario.
+
+    return FirebaseFirestore.instance
+        .collection('recetas')
+        .where(
+          'uid',
+          isEqualTo: user.uid,
+        )
+        .snapshots();
+  }
+
+  // ============================================================
+  // FORMATEAR FECHA
+  // ============================================================
+
+  String _formatFecha(dynamic fecha) {
+    if (fecha == null) {
+      return 'Fecha desconocida';
+    }
+
+    DateTime? fechaDateTime;
+
+    if (fecha is Timestamp) {
+      fechaDateTime =
+          fecha.toDate();
+    } else if (fecha is DateTime) {
+      fechaDateTime = fecha;
+    }
+
+    if (fechaDateTime == null) {
+      return 'Fecha desconocida';
+    }
+
+    final dia =
+        fechaDateTime.day
+            .toString()
+            .padLeft(2, '0');
+
+    final mes =
+        fechaDateTime.month
+            .toString()
+            .padLeft(2, '0');
+
+    final anio =
+        fechaDateTime.year;
+
+    final hora =
+        fechaDateTime.hour
+            .toString()
+            .padLeft(2, '0');
+
+    final minuto =
+        fechaDateTime.minute
+            .toString()
+            .padLeft(2, '0');
+
+    return '$dia/$mes/$anio · '
+        '$hora:$minuto';
+  }
+
+  // ============================================================
+  // OBTENER FECHA DE LA RECETA
+  // ============================================================
+
+  dynamic _obtenerFecha(
+      Map<String, dynamic> datos) {
+    return datos['fechaCreacion'] ??
+        datos['fechaGeneracion'] ??
+        datos['fecha'] ??
+        datos['createdAt'] ??
+        datos['fechaPublicacionForo'];
+  }
+
+  // ============================================================
+  // ABRIR RECETA
+  // ============================================================
+
+  void _openRecipeDetail(
+    BuildContext context,
+    Map<String, dynamic> receta,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            RecipeDetailScreen(
+          receta: receta,
+          onLike: () {},
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // INTERFAZ
+  // ============================================================
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'HISTORIAL DE AMELIA',
+
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight:
+                FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+
+        centerTitle: true,
+
+        backgroundColor:
+            const Color(0xFF2ECC71),
+
+        elevation: 0,
+
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back,
+            color: Colors.white,
+          ),
+
+          onPressed: () =>
+              Navigator.pop(context),
+        ),
+      ),
+
+      backgroundColor:
+          const Color(0xFFFFF8F0),
+
+      body: StreamBuilder<
+          QuerySnapshot<
+              Map<String, dynamic>>>(
+        stream: _getMisRecetas(),
+
+        builder: (
+          context,
+          snapshot,
+        ) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(
+                color:
+                    Color(0xFF2ECC71),
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(
+                  20,
+                ),
+
+                child: Text(
+                  'Error al cargar tu historial:\n'
+                  '${snapshot.error}',
+
+                  textAlign:
+                      TextAlign.center,
+
+                  style:
+                      const TextStyle(
+                    color: Colors.red,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          final documentos =
+              snapshot.data?.docs ?? [];
+
+          if (documentos.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding:
+                    EdgeInsets.all(30),
+
+                child: Column(
+                  mainAxisAlignment:
+                      MainAxisAlignment
+                          .center,
+
+                  children: [
+                    Icon(
+                      Icons.history,
+                      size: 80,
+                      color:
+                          Color(0xFF2ECC71),
+                    ),
+
+                    SizedBox(
+                      height: 20,
+                    ),
+
+                    Text(
+                      'Todavía no tienes recetas.',
+                      textAlign:
+                          TextAlign.center,
+
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+
+                    SizedBox(
+                      height: 10,
+                    ),
+
+                    Text(
+                      'Cuando generes una receta '
+                      'con Amelia aparecerá aquí, '
+                      'aunque no la publiques en el foro.',
+                      textAlign:
+                          TextAlign.center,
+
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 15,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          // ======================================================
+          // ORDENAR EN MEMORIA
+          // ======================================================
+
+          final recetas =
+              documentos.toList();
+
+          recetas.sort(
+            (a, b) {
+              final fechaA =
+                  _obtenerFecha(
+                a.data(),
+              );
+
+              final fechaB =
+                  _obtenerFecha(
+                b.data(),
+              );
+
+              if (fechaA is Timestamp &&
+                  fechaB is Timestamp) {
+                return fechaB
+                    .compareTo(fechaA);
+              }
+
+              return 0;
+            },
+          );
+
+          return ListView.builder(
+            padding:
+                const EdgeInsets.all(12),
+
+            itemCount:
+                recetas.length,
+
+            itemBuilder:
+                (context, index) {
+              final documento =
+                  recetas[index];
+
+              final datos =
+                  documento.data();
+
+              // ==================================================
+              // CONVERTIR RECETA
+              // ==================================================
+
+              final receta =
+                  <String, dynamic>{
+                'id':
+                    documento.id,
+
+                'uid':
+                    datos['uid'] ??
+                        '',
+
+                'titulo':
+                    datos['nombre'] ??
+                        datos['titulo'] ??
+                        'Receta sin nombre',
+
+                'descripcion':
+                    datos['descripcion'] ??
+                        '',
+
+                'ingredientes':
+                    datos['ingredients']
+                            is List
+                        ? List<String>.from(
+                            datos[
+                                'ingredients'],
+                          )
+                        : datos[
+                                'ingredientes']
+                            is List
+                            ? List<String>.from(
+                                datos[
+                                    'ingredientes'],
+                              )
+                            : <String>[],
+
+                'preparacion':
+                    datos['preparation']
+                            is List
+                        ? List<String>.from(
+                            datos[
+                                'preparation'],
+                          )
+                        : datos[
+                                'preparacion']
+                            is List
+                            ? List<String>.from(
+                                datos[
+                                    'preparacion'],
+                              )
+                            : <String>[],
+
+                'servings':
+                    datos['servings'],
+
+                'time':
+                    datos['time'] ??
+                        '',
+
+                'difficulty':
+                    datos['difficulty'] ??
+                        '',
+
+                'advice':
+                    datos['advice'] ??
+                        '',
+
+                'finalMessage':
+                    datos['finalMessage'] ??
+                        '',
+
+                'autor':
+                    datos['usuario'] ??
+                        'Tú',
+
+                'fecha':
+                    _formatFecha(
+                  _obtenerFecha(
+                    datos,
+                  ),
+                ),
+
+                'likes':
+                    datos['likes'] ??
+                        0,
+
+                'liked':
+                    false,
+
+                'comentarios':
+                    datos['comentarios'] ??
+                        0,
+              };
+
+              final publicada =
+                  datos['publicadaEnForo'] ==
+                      true;
+
+              return Card(
+                elevation: 4,
+
+                margin:
+                    const EdgeInsets.only(
+                  bottom: 16,
+                ),
+
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(
+                    16,
+                  ),
+                ),
+
+                child: InkWell(
+                  borderRadius:
+                      BorderRadius.circular(
+                    16,
+                  ),
+
+                  onTap: () =>
+                      _openRecipeDetail(
+                    context,
+                    receta,
+                  ),
+
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .start,
+
+                    children: [
+                      // ==================================================
+                      // ENCABEZADO
+                      // ==================================================
+
+                      Padding(
+                        padding:
+                            const EdgeInsets
+                                .all(16),
+
+                        child: Row(
+                          children: [
+                            const CircleAvatar(
+                              backgroundColor:
+                                  Color(
+                                0xFF2ECC71,
+                              ),
+
+                              child:
+                                  Icon(
+                                Icons
+                                    .auto_awesome,
+                                color:
+                                    Colors.white,
+                              ),
+                            ),
+
+                            const SizedBox(
+                              width: 12,
+                            ),
+
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment
+                                        .start,
+
+                                children: [
+                                  const Text(
+                                    'Amelia',
+
+                                    style:
+                                        TextStyle(
+                                      fontWeight:
+                                          FontWeight
+                                              .bold,
+                                      fontSize:
+                                          16,
+                                    ),
+                                  ),
+
+                                  Text(
+                                    receta[
+                                        'fecha'],
+
+                                    style:
+                                        const TextStyle(
+                                      color:
+                                          Colors.grey,
+                                      fontSize:
+                                          12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // ==================================================
+                            // ESTADO DE PUBLICACIÓN
+                            // ==================================================
+
+                            Container(
+                              padding:
+                                  const EdgeInsets
+                                      .symmetric(
+                                horizontal:
+                                    10,
+                                vertical:
+                                    6,
+                              ),
+
+                              decoration:
+                                  BoxDecoration(
+                                color:
+                                    publicada
+                                        ? const Color(
+                                            0xFF2ECC71,
+                                          ).withOpacity(
+                                            0.12,
+                                          )
+                                        : Colors
+                                            .grey
+                                            .withOpacity(
+                                            0.12,
+                                          ),
+
+                                borderRadius:
+                                    BorderRadius
+                                        .circular(
+                                  20,
+                                ),
+                              ),
+
+                              child: Row(
+                                mainAxisSize:
+                                    MainAxisSize
+                                        .min,
+
+                                children: [
+                                  Icon(
+                                    publicada
+                                        ? Icons
+                                            .public
+                                        : Icons
+                                            .lock_outline,
+
+                                    size: 15,
+
+                                    color:
+                                        publicada
+                                            ? const Color(
+                                                0xFF27AE60,
+                                              )
+                                            : Colors
+                                                .grey,
+                                  ),
+
+                                  const SizedBox(
+                                    width: 4,
+                                  ),
+
+                                  Text(
+                                    publicada
+                                        ? 'Publicada'
+                                        : 'Privada',
+
+                                    style:
+                                        TextStyle(
+                                      fontSize:
+                                          11,
+                                      fontWeight:
+                                          FontWeight
+                                              .bold,
+                                      color:
+                                          publicada
+                                              ? const Color(
+                                                  0xFF27AE60,
+                                                )
+                                              : Colors
+                                                  .grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // ==================================================
+                      // IMAGEN / ESPACIO DE RECETA
+                      // ==================================================
+
+                      Container(
+                        height: 150,
+
+                        decoration:
+                            const BoxDecoration(
+                          gradient:
+                              LinearGradient(
+                            colors: [
+                              Color(
+                                0xFF2ECC71,
+                              ),
+                              Color(
+                                0xFF27AE60,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        child: const Center(
+                          child: Icon(
+                            Icons.restaurant,
+                            size: 60,
+                            color:
+                                Colors.white70,
+                          ),
+                        ),
+                      ),
+
+                      // ==================================================
+                      // INFORMACIÓN
+                      // ==================================================
+
+                      Padding(
+                        padding:
+                            const EdgeInsets
+                                .all(16),
+
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+
+                          children: [
+                            Text(
+                              receta[
+                                  'titulo'],
+
+                              style:
+                                  const TextStyle(
+                                fontSize:
+                                    18,
+                                fontWeight:
+                                    FontWeight
+                                        .bold,
+                                color:
+                                    Color(
+                                  0xFF27AE60,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(
+                              height: 6,
+                            ),
+
+                            if (receta[
+                                    'descripcion']
+                                .toString()
+                                .isNotEmpty)
+                              Text(
+                                receta[
+                                    'descripcion'],
+
+                                maxLines: 3,
+
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
+
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Colors.grey,
+                                  fontSize:
+                                      14,
+                                  height:
+                                      1.4,
+                                ),
+                              ),
+
+                            const SizedBox(
+                              height: 12,
+                            ),
+
+                            Row(
+                              children: [
+                                Container(
+                                  padding:
+                                      const EdgeInsets
+                                          .symmetric(
+                                    horizontal:
+                                        12,
+                                    vertical:
+                                        6,
+                                  ),
+
+                                  decoration:
+                                      BoxDecoration(
+                                    color:
+                                        Colors
+                                            .grey
+                                            .withOpacity(
+                                      0.1,
+                                    ),
+
+                                    borderRadius:
+                                        BorderRadius
+                                            .circular(
+                                      20,
+                                    ),
+                                  ),
+
+                                  child:
+                                      Row(
+                                    children: [
+                                      const Icon(
+                                        Icons
+                                            .favorite_border,
+                                        color:
+                                            Colors
+                                                .grey,
+                                        size:
+                                            20,
+                                      ),
+
+                                      const SizedBox(
+                                        width:
+                                            4,
+                                      ),
+
+                                      Text(
+                                        '${receta['likes']}',
+
+                                        style:
+                                            const TextStyle(
+                                          color:
+                                              Colors.grey,
+                                          fontWeight:
+                                              FontWeight
+                                                  .bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  width: 16,
+                                ),
+
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons
+                                          .chat_bubble_outline,
+                                      size:
+                                          20,
+                                      color:
+                                          Colors.grey,
+                                    ),
+
+                                    const SizedBox(
+                                      width:
+                                          4,
+                                    ),
+
+                                    Text(
+                                      '${receta['comentarios']}',
+
+                                      style:
+                                          const TextStyle(
+                                        color:
+                                            Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const Spacer(),
+
+                                const Icon(
+                                  Icons
+                                      .arrow_forward_ios,
+                                  size: 16,
+                                  color:
+                                      Colors.grey,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -608,11 +1622,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 // STAT ITEM
 // ================================================================
 
-class _StatItem extends StatelessWidget {
+class _StatItem
+    extends StatelessWidget {
   final String label;
   final String value;
 
-  const _StatItem(this.label, this.value);
+  const _StatItem(
+    this.label,
+    this.value,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -620,15 +1638,21 @@ class _StatItem extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(
+
+          style:
+              const TextStyle(
             fontSize: 20,
-            fontWeight: FontWeight.bold,
+            fontWeight:
+                FontWeight.bold,
             color: Colors.white,
           ),
         ),
+
         Text(
           label,
-          style: const TextStyle(
+
+          style:
+              const TextStyle(
             color: Colors.white70,
             fontSize: 14,
           ),
@@ -642,7 +1666,8 @@ class _StatItem extends StatelessWidget {
 // PROFILE OPTION
 // ================================================================
 
-class _ProfileOption extends StatelessWidget {
+class _ProfileOption
+    extends StatelessWidget {
   final IconData icon;
   final String title;
   final Color iconColor;
@@ -662,12 +1687,16 @@ class _ProfileOption extends StatelessWidget {
         icon,
         color: iconColor,
       ),
+
       title: Text(title),
-      trailing: const Icon(
+
+      trailing:
+          const Icon(
         Icons.arrow_forward_ios,
         size: 16,
         color: Colors.grey,
       ),
+
       onTap: onTap,
     );
   }
@@ -677,52 +1706,76 @@ class _ProfileOption extends StatelessWidget {
 // BADGES SECTION
 // ================================================================
 
-class _BadgesSection extends StatelessWidget {
+class _BadgesSection
+    extends StatelessWidget {
   const _BadgesSection();
 
   @override
   Widget build(BuildContext context) {
-    final List<_Badge> badges = const [
+    final List<_Badge> badges =
+        const [
       _Badge(
         icon: Icons.emoji_events,
         label: 'Campeón',
-        color: Color(0xFFFFD700),
-        description: '100 recetas guardadas',
+        color:
+            Color(0xFFFFD700),
+        description:
+            '100 recetas guardadas',
       ),
+
       _Badge(
-        icon: Icons.local_fire_department,
+        icon:
+            Icons.local_fire_department,
         label: 'Tendencia',
-        color: Color(0xFFFF6B35),
-        description: 'Receta más likeada de la semana',
+        color:
+            Color(0xFFFF6B35),
+        description:
+            'Receta más likeada de la semana',
       ),
+
       _Badge(
         icon: Icons.star,
         label: 'Receta Estrella',
-        color: Color(0xFFFFD700),
-        description: '+50 likes en una receta',
+        color:
+            Color(0xFFFFD700),
+        description:
+            '+50 likes en una receta',
       ),
+
       _Badge(
-        icon: Icons.workspace_premium,
-        label: 'Maestro Cocinero',
-        color: Color(0xFF9B59B6),
-        description: '5 recetas con +30 likes',
+        icon:
+            Icons.workspace_premium,
+        label:
+            'Maestro Cocinero',
+        color:
+            Color(0xFF9B59B6),
+        description:
+            '5 recetas con +30 likes',
       ),
+
       _Badge(
         icon: Icons.bookmark,
         label: 'Favorita',
-        color: Color(0xFFE74C3C),
-        description: 'Receta más guardada',
+        color:
+            Color(0xFFE74C3C),
+        description:
+            'Receta más guardada',
       ),
+
       _Badge(
         icon: Icons.auto_awesome,
         label: 'Principiante',
-        color: Color(0xFF2ECC71),
-        description: 'Primera receta publicada',
+        color:
+            Color(0xFF2ECC71),
+        description:
+            'Primera receta publicada',
       ),
     ];
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+
       children: [
         const Row(
           children: [
@@ -731,23 +1784,35 @@ class _BadgesSection extends StatelessWidget {
               color: Colors.white,
               size: 18,
             ),
-            SizedBox(width: 8),
+
+            SizedBox(
+              width: 8,
+            ),
+
             Text(
               '🏅 Medallas',
-              style: TextStyle(
+
+              style:
+                  TextStyle(
                 color: Colors.white,
                 fontSize: 16,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
           ],
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(
+          height: 12,
+        ),
 
         GridView.builder(
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+
+          physics:
+              const NeverScrollableScrollPhysics(),
+
           gridDelegate:
               const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
@@ -755,10 +1820,15 @@ class _BadgesSection extends StatelessWidget {
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
-          itemCount: badges.length,
-          itemBuilder: (context, index) {
+
+          itemCount:
+              badges.length,
+
+          itemBuilder:
+              (context, index) {
             return _BadgeItem(
-              badge: badges[index],
+              badge:
+                  badges[index],
             );
           },
         ),
@@ -789,7 +1859,8 @@ class _Badge {
 // BADGE ITEM
 // ================================================================
 
-class _BadgeItem extends StatelessWidget {
+class _BadgeItem
+    extends StatelessWidget {
   final _Badge badge;
 
   const _BadgeItem({
@@ -799,35 +1870,64 @@ class _BadgeItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: badge.description,
+      message:
+          badge.description,
+
       child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
+        decoration:
+            BoxDecoration(
+          color: Colors.white
+              .withOpacity(0.15),
+
+          borderRadius:
+              BorderRadius.circular(
+            12,
+          ),
+
           border: Border.all(
-            color: Colors.white.withOpacity(0.3),
+            color: Colors.white
+                .withOpacity(0.3),
+
             width: 1,
           ),
         ),
+
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+              MainAxisAlignment
+                  .center,
+
           children: [
             Icon(
               badge.icon,
-              color: badge.color,
+              color:
+                  badge.color,
               size: 28,
             ),
-            const SizedBox(height: 4),
+
+            const SizedBox(
+              height: 4,
+            ),
+
             Text(
               badge.label,
-              style: const TextStyle(
-                color: Colors.white,
+
+              style:
+                  const TextStyle(
+                color:
+                    Colors.white,
                 fontSize: 10,
-                fontWeight: FontWeight.w500,
+                fontWeight:
+                    FontWeight.w500,
               ),
-              textAlign: TextAlign.center,
+
+              textAlign:
+                  TextAlign.center,
+
               maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+
+              overflow:
+                  TextOverflow.ellipsis,
             ),
           ],
         ),

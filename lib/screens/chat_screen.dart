@@ -64,6 +64,10 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  // ============================================================
+  // SCROLL
+  // ============================================================
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -84,7 +88,9 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       messages.add({
         'text':
-            '¡Hola! 👋 Soy Amelia, tu asistente de cocina. ¿Qué vamos a preparar hoy? Puedes escribirme o enviarme una foto de tus ingredientes con la cámara o galería. 🍳📸',
+            '¡Hola! 👋 Soy Amelia, tu asistente de cocina. '
+            '¿Qué vamos a preparar hoy? Puedes escribirme o enviarme '
+            'una foto de tus ingredientes con la cámara o galería. 🍳📸',
         'isUser': false,
         'time': _getCurrentTime(),
       });
@@ -120,9 +126,9 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      // ============================================================
-      // PREPARAR PROMPTS E HISTORIAL DEL CHAT
-      // ============================================================
+      // ==========================================================
+      // PREPARAR PROMPTS E HISTORIAL
+      // ==========================================================
 
       final List<Map<String, String>> promptMessages = [
         {
@@ -153,9 +159,9 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
 
-      // ============================================================
-      // ENVIAR MENSAJE A DEEPSEEK
-      // ============================================================
+      // ==========================================================
+      // ENVIAR A DEEPSEEK
+      // ==========================================================
 
       final response = await _deepSeekService.sendMessage(
         messages: promptMessages,
@@ -165,9 +171,9 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint(response);
       debugPrint('============================================');
 
-      // ============================================================
-      // LIMPIAR POSIBLES BLOQUES DE MARKDOWN
-      // ============================================================
+      // ==========================================================
+      // LIMPIAR MARKDOWN
+      // ==========================================================
 
       String cleanResponse = response.trim();
 
@@ -177,9 +183,9 @@ class _ChatScreenState extends State<ChatScreen> {
           .replaceAll('```', '')
           .trim();
 
-      // ============================================================
-      // ENCONTRAR EL JSON
-      // ============================================================
+      // ==========================================================
+      // ENCONTRAR JSON
+      // ==========================================================
 
       final firstBrace = cleanResponse.indexOf('{');
       final lastBrace = cleanResponse.lastIndexOf('}');
@@ -193,9 +199,9 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint(cleanResponse);
       debugPrint('=================================');
 
-      // ============================================================
-      // INTENTAR CONVERTIR A JSON
-      // ============================================================
+      // ==========================================================
+      // CONVERTIR JSON
+      // ==========================================================
 
       dynamic data;
 
@@ -206,9 +212,9 @@ class _ChatScreenState extends State<ChatScreen> {
         data = null;
       }
 
-      // ============================================================
+      // ==========================================================
       // SI ES UNA RECETA
-      // ============================================================
+      // ==========================================================
 
       if (data is Map<String, dynamic> &&
           data['type']?.toString().toLowerCase() == 'recipe') {
@@ -248,9 +254,9 @@ class _ChatScreenState extends State<ChatScreen> {
         debugPrint(recipe.toString());
         debugPrint('======================================');
 
-        // ============================================================
+        // ========================================================
         // GUARDAR RECETA GENERADA EN FIRESTORE
-        // ============================================================
+        // ========================================================
 
         final recetaId = await _registerGeneratedRecipe(recipe);
 
@@ -264,9 +270,9 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
 
-        // ============================================================
+        // ========================================================
         // ASOCIAR ID A LA RECETA
-        // ============================================================
+        // ========================================================
 
         recipe['recetaId'] = recetaId;
 
@@ -275,9 +281,9 @@ class _ChatScreenState extends State<ChatScreen> {
           '${recipe['recetaId']}',
         );
 
-        // ============================================================
+        // ========================================================
         // MOSTRAR RECETA EN EL CHAT
-        // ============================================================
+        // ========================================================
 
         setState(() {
           if ((recipe['finalMessage'] as String).isNotEmpty) {
@@ -297,9 +303,9 @@ class _ChatScreenState extends State<ChatScreen> {
           });
         });
       } else {
-        // ============================================================
+        // ========================================================
         // NO ES RECETA
-        // ============================================================
+        // ========================================================
 
         debugPrint(
           'La respuesta NO fue reconocida como receta.',
@@ -317,6 +323,8 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint(
         'Error al procesar respuesta: $e',
       );
+
+      if (!mounted) return;
 
       setState(() {
         messages.add({
@@ -342,8 +350,11 @@ class _ChatScreenState extends State<ChatScreen> {
   // MODO COCINAR
   // ============================================================
 
-  void _goToCookingMode(Map<String, dynamic> recipe) {
-    final recipeName = recipe['name'] ?? 'Receta';
+  void _goToCookingMode(
+    Map<String, dynamic> recipe,
+  ) {
+    final recipeName =
+        recipe['name'] ?? 'Receta';
 
     final ingredients = List<String>.from(
       recipe['ingredients'] ?? [],
@@ -367,6 +378,182 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ============================================================
+  // PUBLICAR RECETA EN EL FORO
+  // ============================================================
+
+  Future<void> _publishRecipe(
+    Map<String, dynamic> recipe,
+  ) async {
+    try {
+      final user =
+          FirebaseAuth.instance.currentUser;
+
+      // ========================================================
+      // COMPROBAR USUARIO
+      // ========================================================
+
+      if (user == null) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '⚠️ Debes iniciar sesión para publicar una receta.',
+            ),
+            backgroundColor: Color(0xFFF39C12),
+          ),
+        );
+
+        return;
+      }
+
+      // ========================================================
+      // OBTENER ID DE LA RECETA
+      // ========================================================
+
+      final recetaId = recipe['recetaId'];
+
+      if (recetaId == null ||
+          recetaId.toString().isEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '❌ No se encontró el ID de la receta.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        return;
+      }
+
+      debugPrint(
+        '========== PUBLICANDO RECETA =========='
+      );
+
+      debugPrint(
+        'Receta: ${recipe['name']}',
+      );
+
+      debugPrint(
+        'ID: $recetaId',
+      );
+
+      // ========================================================
+      // REFERENCIA A LA RECETA
+      // ========================================================
+
+      final recetaRef = FirebaseFirestore.instance
+          .collection('recetas')
+          .doc(recetaId.toString());
+
+      // ========================================================
+      // COMPROBAR QUE LA RECETA EXISTE
+      // ========================================================
+
+      final recetaSnapshot =
+          await recetaRef.get();
+
+      if (!recetaSnapshot.exists) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '❌ La receta no existe en Firestore.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        return;
+      }
+
+      final datosExistentes =
+          recetaSnapshot.data();
+
+      // ========================================================
+      // COMPROBAR SI YA ESTÁ PUBLICADA
+      // ========================================================
+
+      if (datosExistentes?['publicadaEnForo'] == true) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '⚠️ Esta receta ya está publicada en el foro.',
+            ),
+            backgroundColor: Color(0xFFF39C12),
+          ),
+        );
+
+        return;
+      }
+
+      // ========================================================
+      // PUBLICAR RECETA
+      // ========================================================
+
+      await recetaRef.update({
+        'publicadaEnForo': true,
+        'fechaPublicacionForo':
+            FieldValue.serverTimestamp(),
+        'likes': 0,
+        'comentarios': 0,
+      });
+
+      debugPrint(
+        '✅ RECETA PUBLICADA CORRECTAMENTE EN EL FORO',
+      );
+
+      debugPrint(
+        '======================================'
+      );
+
+      // ========================================================
+      // MOSTRAR CONFIRMACIÓN
+      // ========================================================
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '📝 ¡Receta publicada correctamente en el foro!',
+          ),
+          backgroundColor: Color(0xFF27AE60),
+        ),
+      );
+
+      // ========================================================
+      // MARCARLA COMO PUBLICADA EN EL CHAT
+      // ========================================================
+
+      setState(() {
+        recipe['publicadaEnForo'] = true;
+      });
+    } catch (e) {
+      debugPrint(
+        'ERROR AL PUBLICAR RECETA EN EL FORO: $e',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '❌ No se pudo publicar la receta: $e',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // ============================================================
   // REGISTRAR RECETA GENERADA
   // ============================================================
 
@@ -374,54 +561,83 @@ class _ChatScreenState extends State<ChatScreen> {
     Map<String, dynamic> recipe,
   ) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user =
+          FirebaseAuth.instance.currentUser;
 
       if (user == null) {
         debugPrint(
-          'No hay usuario autenticado. No se guardará la receta.',
+          'No hay usuario autenticado. '
+          'No se guardará la receta.',
         );
+
         return null;
       }
 
-      // ============================================================
+      // ========================================================
       // COLECCIÓN: recetas
-      // ============================================================
+      // ========================================================
 
       final recetaRef =
-          await FirebaseFirestore.instance.collection('recetas').add({
+          await FirebaseFirestore.instance
+              .collection('recetas')
+              .add({
         'uid': user.uid,
-        'nombre': recipe['name'] ?? 'Receta de Amelia',
-        'descripcion': recipe['description'] ?? '',
-        'servings': recipe['servings'],
-        'time': recipe['time'] ?? '',
-        'difficulty': recipe['difficulty'] ?? '',
-        'ingredients': List<String>.from(
-          recipe['ingredients'] ?? [],
+        'nombre':
+            recipe['name'] ??
+                'Receta de Amelia',
+        'descripcion':
+            recipe['description'] ??
+                '',
+        'servings':
+            recipe['servings'],
+        'time':
+            recipe['time'] ??
+                '',
+        'difficulty':
+            recipe['difficulty'] ??
+                '',
+        'ingredients':
+            List<String>.from(
+          recipe['ingredients'] ??
+              [],
         ),
-        'optionalIngredients': List<String>.from(
-          recipe['optionalIngredients'] ?? [],
+        'optionalIngredients':
+            List<String>.from(
+          recipe['optionalIngredients'] ??
+              [],
         ),
-        'preparation': List<String>.from(
-          recipe['preparation'] ?? [],
+        'preparation':
+            List<String>.from(
+          recipe['preparation'] ??
+              [],
         ),
-        'advice': recipe['advice'] ?? '',
-        'finalMessage': recipe['finalMessage'] ?? '',
-        'fechaCreacion': FieldValue.serverTimestamp(),
+        'advice':
+            recipe['advice'] ??
+                '',
+        'finalMessage':
+            recipe['finalMessage'] ??
+                '',
+        'publicadaEnForo':
+            false,
+        'fechaCreacion':
+            FieldValue.serverTimestamp(),
       });
 
       debugPrint(
-        'Receta guardada correctamente en Firestore: ${recetaRef.id}',
+        'Receta guardada correctamente en Firestore: '
+        '${recetaRef.id}',
       );
 
-      // ============================================================
+      // ========================================================
       // ACTUALIZAR CONTADOR DEL USUARIO
-      // ============================================================
+      // ========================================================
 
       await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(user.uid)
           .update({
-        'recetasGeneradas': FieldValue.increment(1),
+        'recetasGeneradas':
+            FieldValue.increment(1),
       });
 
       debugPrint(
@@ -446,26 +662,30 @@ class _ChatScreenState extends State<ChatScreen> {
     Map<String, dynamic> recipe,
   ) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user =
+          FirebaseAuth.instance.currentUser;
 
       if (user == null) {
         debugPrint(
           'No hay usuario autenticado.',
         );
+
         return;
       }
 
-      // ============================================================
-      // OBTENER ID DIRECTO DE LA RECETA
-      // ============================================================
+      // ========================================================
+      // OBTENER ID DIRECTO
+      // ========================================================
 
-      final recetaId = recipe['recetaId'];
+      final recetaId =
+          recipe['recetaId'];
 
       if (recetaId == null ||
           recetaId.toString().isEmpty) {
         debugPrint(
           'ERROR: La receta no tiene recetaId.',
         );
+
         return;
       }
 
@@ -473,22 +693,23 @@ class _ChatScreenState extends State<ChatScreen> {
         'Guardando receta con ID directo: $recetaId',
       );
 
-      // ============================================================
+      // ========================================================
       // COMPROBAR SI YA ESTÁ GUARDADA
-      // ============================================================
+      // ========================================================
 
-      final guardadaQuery = await FirebaseFirestore.instance
-          .collection('recetas_guardadas')
-          .where(
-            'uid',
-            isEqualTo: user.uid,
-          )
-          .where(
-            'recetaId',
-            isEqualTo: recetaId,
-          )
-          .limit(1)
-          .get();
+      final guardadaQuery =
+          await FirebaseFirestore.instance
+              .collection('recetas_guardadas')
+              .where(
+                'uid',
+                isEqualTo: user.uid,
+              )
+              .where(
+                'recetaId',
+                isEqualTo: recetaId,
+              )
+              .limit(1)
+              .get();
 
       if (guardadaQuery.docs.isNotEmpty) {
         if (!mounted) return;
@@ -498,38 +719,41 @@ class _ChatScreenState extends State<ChatScreen> {
             content: Text(
               '⚠️ Esta receta ya está en favoritos',
             ),
-            backgroundColor: Color(0xFFF39C12),
+            backgroundColor:
+                Color(0xFFF39C12),
           ),
         );
 
         return;
       }
 
-      // ============================================================
+      // ========================================================
       // GUARDAR RELACIÓN USUARIO → RECETA
-      // ============================================================
+      // ========================================================
 
       await FirebaseFirestore.instance
           .collection('recetas_guardadas')
           .add({
         'uid': user.uid,
         'recetaId': recetaId,
-        'fechaGuardado': FieldValue.serverTimestamp(),
+        'fechaGuardado':
+            FieldValue.serverTimestamp(),
       });
 
       debugPrint(
         'Receta guardada en favoritos correctamente.',
       );
 
-      // ============================================================
-      // ACTUALIZAR CONTADOR DEL USUARIO
-      // ============================================================
+      // ========================================================
+      // ACTUALIZAR CONTADOR
+      // ========================================================
 
       await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(user.uid)
           .update({
-        'recetasGuardadas': FieldValue.increment(1),
+        'recetasGuardadas':
+            FieldValue.increment(1),
       });
 
       debugPrint(
@@ -543,7 +767,8 @@ class _ChatScreenState extends State<ChatScreen> {
           content: Text(
             '❤️ Receta guardada en favoritos',
           ),
-          backgroundColor: Color(0xFF2ECC71),
+          backgroundColor:
+              Color(0xFF2ECC71),
         ),
       );
     } catch (e) {
@@ -576,7 +801,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ============================================================
-  // CÁMARA, GALERÍA Y RECONOCIMIENTO CON GEMINI
+  // CÁMARA, GALERÍA Y GEMINI
   // ============================================================
 
   Future<void> _pickImage(
@@ -585,7 +810,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_isLoading) return;
 
     try {
-      final XFile? picked = await _picker.pickImage(
+      final XFile? picked =
+          await _picker.pickImage(
         source: source,
         maxWidth: 1024,
         maxHeight: 1024,
@@ -594,56 +820,81 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (picked == null) return;
 
-      final File imageFile = File(picked.path);
+      final File imageFile =
+          File(picked.path);
 
       setState(() {
         messages.add({
-          'text': '📷 Foto de ingredientes',
-          'image': imageFile,
-          'isUser': true,
-          'time': _getCurrentTime(),
+          'text':
+              '📷 Foto de ingredientes',
+          'image':
+              imageFile,
+          'isUser':
+              true,
+          'time':
+              _getCurrentTime(),
         });
 
         _isLoading = true;
+
         _loadingText =
-            'Amelia y Gemini están reconociendo los ingredientes...';
+            'Amelia y Gemini están reconociendo '
+            'los ingredientes...';
       });
 
       _scrollToBottom();
 
       final result =
-          await _geminiService.recognizeIngredients(imageFile);
+          await _geminiService
+              .recognizeIngredients(
+        imageFile,
+      );
 
       if (!mounted) return;
 
       if (result.ingredientes.isNotEmpty) {
         final ingredientsList =
-            result.ingredientes.map((i) => '• $i').join('\n');
+            result.ingredientes
+                .map(
+                  (i) => '• $i',
+                )
+                .join('\n');
 
         final ameliaResponse =
             '¡He analizado tu foto con Gemini! 🔍✨\n\n'
             'Detecté estos ingredientes:\n'
             '$ingredientsList\n\n'
-            '${result.mensaje} ¿Quieres que preparemos una receta con ellos?';
+            '${result.mensaje} '
+            '¿Quieres que preparemos una receta con ellos?';
 
         setState(() {
           messages.add({
-            'text': ameliaResponse,
-            'isUser': false,
-            'time': _getCurrentTime(),
-            'detectedIngredients': result.ingredientes,
-            'actionTaken': false,
+            'text':
+                ameliaResponse,
+            'isUser':
+                false,
+            'time':
+                _getCurrentTime(),
+            'detectedIngredients':
+                result.ingredientes,
+            'actionTaken':
+                false,
           });
         });
       } else {
         setState(() {
           messages.add({
-            'text': result.mensaje.isNotEmpty
-                ? result.mensaje
-                : 'No pude reconocer ingredientes con claridad en la imagen. '
-                    'Intenta con otra foto con mejor iluminación o ángulo. 📷',
-            'isUser': false,
-            'time': _getCurrentTime(),
+            'text':
+                result.mensaje.isNotEmpty
+                    ? result.mensaje
+                    : 'No pude reconocer ingredientes '
+                      'con claridad en la imagen. '
+                      'Intenta con otra foto con mejor '
+                      'iluminación o ángulo. 📷',
+            'isUser':
+                false,
+            'time':
+                _getCurrentTime(),
           });
         });
       }
@@ -659,19 +910,25 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!mounted) return;
 
       String errorMsg =
-          'Hubo un inconveniente al procesar la imagen: $e';
+          'Hubo un inconveniente al procesar '
+          'la imagen: $e';
 
-      if (e.toString().contains('GEMINI_API_KEY')) {
+      if (e.toString().contains(
+            'GEMINI_API_KEY',
+          )) {
         errorMsg =
-            '⚠️ GEMINI_API_KEY no está configurada en el archivo .env. '
-            'Por favor revísala.';
+            '⚠️ GEMINI_API_KEY no está configurada '
+            'en el archivo .env. Por favor revísala.';
       }
 
       setState(() {
         messages.add({
-          'text': errorMsg,
-          'isUser': false,
-          'time': _getCurrentTime(),
+          'text':
+              errorMsg,
+          'isUser':
+              false,
+          'time':
+              _getCurrentTime(),
         });
       });
     } finally {
@@ -685,16 +942,28 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _openCamera() {
-    _pickImage(ImageSource.camera);
-  }
+  // ============================================================
+  // ABRIR CÁMARA
+  // ============================================================
 
-  void _openGallery() {
-    _pickImage(ImageSource.gallery);
+  void _openCamera() {
+    _pickImage(
+      ImageSource.camera,
+    );
   }
 
   // ============================================================
-  // CONFIRMAR INGREDIENTES DETECTADOS
+  // ABRIR GALERÍA
+  // ============================================================
+
+  void _openGallery() {
+    _pickImage(
+      ImageSource.gallery,
+    );
+  }
+
+  // ============================================================
+  // CONFIRMAR INGREDIENTES
   // ============================================================
 
   void _handleConfirmIngredients(
@@ -714,7 +983,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ============================================================
-  // EDITAR INGREDIENTES DETECTADOS
+  // EDITAR INGREDIENTES
   // ============================================================
 
   void _handleEditIngredients(
@@ -726,28 +995,34 @@ class _ChatScreenState extends State<ChatScreen> {
       msg['actionTaken'] = true;
     });
 
-    final detected = msg['detectedIngredients'] != null
-        ? List<String>.from(
-            msg['detectedIngredients'],
-          )
-        : <String>[];
+    final detected =
+        msg['detectedIngredients'] != null
+            ? List<String>.from(
+                msg['detectedIngredients'],
+              )
+            : <String>[];
 
-    final ingredientesStr = detected.join(', ');
+    final ingredientesStr =
+        detected.join(', ');
 
-    final prefix = ingredientesStr.isNotEmpty
-        ? 'Los ingredientes que tengo son: '
-            '$ingredientesStr, y también quiero agregar: '
-        : 'Además de esos ingredientes, también quiero agregar: ';
+    final prefix =
+        ingredientesStr.isNotEmpty
+            ? 'Los ingredientes que tengo son: '
+              '$ingredientesStr, y también quiero agregar: '
+            : 'Además de esos ingredientes, '
+              'también quiero agregar: ';
 
     const suffix =
         '. Por favor, prepárame una receta deliciosa con todos ellos.';
 
-    _controller.text = prefix + suffix;
+    _controller.text =
+        prefix + suffix;
 
     _controller.selection =
         TextSelection.fromPosition(
       TextPosition(
-        offset: prefix.length,
+        offset:
+            prefix.length,
       ),
     );
 
@@ -755,77 +1030,148 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ============================================================
-  // INTERFAZ
+  // INTERFAZ PRINCIPAL
   // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF8F0),
+      backgroundColor:
+          const Color(0xFFFFF8F0),
+
       body: Column(
         children: [
+          // ======================================================
+          // MENSAJES
+          // ======================================================
+
           Expanded(
             child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+              controller:
+                  _scrollController,
+              padding:
+                  const EdgeInsets.all(16),
+
               itemCount:
                   messages.length +
                   (_isLoading ? 2 : 1),
-              itemBuilder: (context, index) {
+
+              itemBuilder:
+                  (context, index) {
+                // ================================================
+                // ESPACIO SUPERIOR
+                // ================================================
+
                 if (index == 0) {
                   return const SizedBox(
                     height: 40,
                   );
                 }
 
+                // ================================================
+                // INDICADOR DE CARGA
+                // ================================================
+
                 if (_isLoading &&
-                    index == messages.length + 1) {
+                    index ==
+                        messages.length + 1) {
                   return _TypingBubble(
-                    text: _loadingText,
+                    text:
+                        _loadingText,
                   );
                 }
 
-                final msgIndex = index - 1;
+                final msgIndex =
+                    index - 1;
 
-                if (msgIndex >= messages.length) {
+                if (msgIndex >=
+                    messages.length) {
                   return const SizedBox.shrink();
                 }
 
-                final msg = messages[msgIndex];
+                final msg =
+                    messages[msgIndex];
 
                 final isRecipe =
-                    msg['isRecipe'] ?? false;
+                    msg['isRecipe'] ??
+                        false;
+
+                // ================================================
+                // RECETA
+                // ================================================
 
                 if (isRecipe) {
                   return _RecipeBubble(
-                    recipeData: msg['recipeData'],
-                    onCook: () => _goToCookingMode(
+                    recipeData:
+                        msg['recipeData'],
+
+                    onCook:
+                        () =>
+                            _goToCookingMode(
                       msg['recipeData'],
                     ),
-                    onSave: () => _saveRecipe(
+
+                    onSave:
+                        () =>
+                            _saveRecipe(
                       msg['recipeData'],
                     ),
-                    time: msg['time'],
+
+                    onPublish:
+                        () =>
+                            _publishRecipe(
+                      msg['recipeData'],
+                    ),
+
+                    time:
+                        msg['time'],
                   );
                 }
 
+                // ================================================
+                // MENSAJE NORMAL
+                // ================================================
+
                 return _ChatBubble(
-                  message: msg['text'] ?? '',
-                  image: msg['image'],
-                  isUser: msg['isUser'] ?? false,
-                  time: msg['time'] ?? '',
+                  message:
+                      msg['text'] ??
+                          '',
+
+                  image:
+                      msg['image'],
+
+                  isUser:
+                      msg['isUser'] ??
+                          false,
+
+                  time:
+                      msg['time'] ??
+                          '',
+
                   detectedIngredients:
-                      msg['detectedIngredients'] != null
+                      msg['detectedIngredients'] !=
+                              null
                           ? List<String>.from(
-                              msg['detectedIngredients'],
+                              msg[
+                                  'detectedIngredients'],
                             )
                           : null,
+
                   actionTaken:
-                      msg['actionTaken'] ?? false,
-                  onConfirm: () =>
-                      _handleConfirmIngredients(msg),
-                  onEdit: () =>
-                      _handleEditIngredients(msg),
+                      msg['actionTaken'] ??
+                          false,
+
+                  onConfirm:
+                      () =>
+                          _handleConfirmIngredients(
+                    msg,
+                  ),
+
+                  onEdit:
+                      () =>
+                          _handleEditIngredients(
+                    msg,
+                  ),
                 );
               },
             ),
@@ -836,124 +1182,216 @@ class _ChatScreenState extends State<ChatScreen> {
           // ======================================================
 
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding:
+                const EdgeInsets.all(12),
+
             child: Row(
               children: [
+                // ==================================================
+                // TEXTFIELD
+                // ==================================================
+
                 Expanded(
                   child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          Colors.white,
+
                       borderRadius:
-                          BorderRadius.circular(30),
+                          BorderRadius.circular(
+                        30,
+                      ),
+
                       boxShadow: const [
                         BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
+                          color:
+                              Colors.black12,
+                          blurRadius:
+                              8,
+                          offset:
+                              Offset(0, 2),
                         ),
                       ],
                     ),
+
                     child: TextField(
-                      controller: _controller,
+                      controller:
+                          _controller,
+
                       focusNode:
                           _textFieldFocusNode,
-                      enabled: !_isLoading,
+
+                      enabled:
+                          !_isLoading,
+
                       decoration:
                           const InputDecoration(
                         hintText:
                             'Escribe un mensaje...',
+
                         border:
                             InputBorder.none,
+
                         contentPadding:
                             EdgeInsets.symmetric(
-                          horizontal: 20,
+                          horizontal:
+                              20,
                         ),
                       ),
-                      onSubmitted: (_) =>
-                          _sendMessage(),
+
+                      onSubmitted:
+                          (_) =>
+                              _sendMessage(),
                     ),
                   ),
                 ),
 
-                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 8,
+                ),
 
                 // ==================================================
                 // CÁMARA
                 // ==================================================
 
                 Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2ECC71)
-                        .withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.camera_alt,
-                      color: Color(0xFF2ECC71),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        const Color(
+                      0xFF2ECC71,
+                    ).withValues(
+                      alpha: 0.2,
                     ),
-                    tooltip: 'Tomar foto',
-                    onPressed: _isLoading
-                        ? null
-                        : _openCamera,
-                    iconSize: 24,
+
+                    shape:
+                        BoxShape.circle,
+                  ),
+
+                  child:
+                      IconButton(
+                    icon:
+                        const Icon(
+                      Icons.camera_alt,
+                      color:
+                          Color(
+                        0xFF2ECC71,
+                      ),
+                    ),
+
+                    tooltip:
+                        'Tomar foto',
+
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : _openCamera,
+
+                    iconSize:
+                        24,
                   ),
                 ),
 
-                const SizedBox(width: 4),
+                const SizedBox(
+                  width: 4,
+                ),
 
                 // ==================================================
                 // GALERÍA
                 // ==================================================
 
                 Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2ECC71)
-                        .withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.photo,
-                      color: Color(0xFF2ECC71),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        const Color(
+                      0xFF2ECC71,
+                    ).withValues(
+                      alpha: 0.2,
                     ),
-                    tooltip: 'Galería',
-                    onPressed: _isLoading
-                        ? null
-                        : _openGallery,
-                    iconSize: 24,
+
+                    shape:
+                        BoxShape.circle,
+                  ),
+
+                  child:
+                      IconButton(
+                    icon:
+                        const Icon(
+                      Icons.photo,
+                      color:
+                          Color(
+                        0xFF2ECC71,
+                      ),
+                    ),
+
+                    tooltip:
+                        'Galería',
+
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : _openGallery,
+
+                    iconSize:
+                        24,
                   ),
                 ),
 
-                const SizedBox(width: 4),
+                const SizedBox(
+                  width: 4,
+                ),
 
                 // ==================================================
                 // ENVIAR
                 // ==================================================
 
                 Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2ECC71),
-                    shape: BoxShape.circle,
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        const Color(
+                      0xFF2ECC71,
+                    ),
+
+                    shape:
+                        BoxShape.circle,
+
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF2ECC71)
-                            .withValues(alpha: 0.4),
-                        blurRadius: 12,
+                        color:
+                            const Color(
+                          0xFF2ECC71,
+                        ).withValues(
+                          alpha: 0.4,
+                        ),
+                        blurRadius:
+                            12,
                       ),
                     ],
                   ),
-                  child: IconButton(
-                    icon: Icon(
+
+                  child:
+                      IconButton(
+                    icon:
+                        Icon(
                       _isLoading
                           ? Icons.hourglass_top
                           : Icons.send,
-                      color: Colors.white,
+
+                      color:
+                          Colors.white,
                     ),
-                    onPressed: _isLoading
-                        ? null
-                        : () => _sendMessage(),
-                    iconSize: 24,
+
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : () =>
+                                _sendMessage(),
+
+                    iconSize:
+                        24,
                   ),
                 ),
               ],
@@ -969,15 +1407,23 @@ class _ChatScreenState extends State<ChatScreen> {
 // BURBUJA NORMAL DEL CHAT
 // ================================================================
 
-class _ChatBubble extends StatelessWidget {
+class _ChatBubble
+    extends StatelessWidget {
   final String message;
   final File? image;
   final bool isUser;
   final String time;
-  final List<String>? detectedIngredients;
+
+  final List<String>?
+      detectedIngredients;
+
   final bool actionTaken;
-  final VoidCallback? onConfirm;
-  final VoidCallback? onEdit;
+
+  final VoidCallback?
+      onConfirm;
+
+  final VoidCallback?
+      onEdit;
 
   const _ChatBubble({
     required this.message,
@@ -991,93 +1437,166 @@ class _ChatBubble extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Padding(
-      padding: const EdgeInsets.only(
+      padding:
+          const EdgeInsets.only(
         bottom: 12,
       ),
+
       child: Column(
-        crossAxisAlignment: isUser
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isUser
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+
         children: [
           Row(
-            mainAxisAlignment: isUser
-                ? MainAxisAlignment.end
-                : MainAxisAlignment.start,
+            mainAxisAlignment:
+                isUser
+                    ? MainAxisAlignment.end
+                    : MainAxisAlignment.start,
+
             crossAxisAlignment:
                 CrossAxisAlignment.end,
+
             children: [
+              // ==================================================
+              // AVATAR AMELIA
+              // ==================================================
+
               if (!isUser)
                 CircleAvatar(
                   radius: 16,
+
                   backgroundColor:
-                      const Color(0xFF2ECC71),
+                      const Color(
+                    0xFF2ECC71,
+                  ),
+
                   backgroundImage:
                       const AssetImage(
                     'assets/amelia.jpg',
                   ),
+
                   onBackgroundImageError:
-                      (error, stackTrace) {},
-                  child: const Icon(
+                      (
+                    error,
+                    stackTrace,
+                  ) {},
+
+                  child:
+                      const Icon(
                     Icons.room_service,
                     size: 16,
-                    color: Colors.white,
+                    color:
+                        Colors.white,
                   ),
                 ),
 
               if (!isUser)
-                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 8,
+                ),
+
+              // ==================================================
+              // BURBUJA
+              // ==================================================
 
               Flexible(
                 child: Container(
                   padding:
-                      const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: isUser
-                        ? const Color(0xFF2ECC71)
-                        : Colors.white,
+                      const EdgeInsets.all(
+                    14,
+                  ),
+
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        isUser
+                            ? const Color(
+                                0xFF2ECC71,
+                              )
+                            : Colors.white,
+
                     borderRadius:
                         BorderRadius.only(
                       topLeft:
-                          const Radius.circular(16),
+                          const Radius.circular(
+                        16,
+                      ),
+
                       topRight:
-                          const Radius.circular(16),
-                      bottomLeft: isUser
-                          ? const Radius.circular(16)
-                          : Radius.zero,
-                      bottomRight: isUser
-                          ? Radius.zero
-                          : const Radius.circular(16),
+                          const Radius.circular(
+                        16,
+                      ),
+
+                      bottomLeft:
+                          isUser
+                              ? const Radius.circular(
+                                  16,
+                                )
+                              : Radius.zero,
+
+                      bottomRight:
+                          isUser
+                              ? Radius.zero
+                              : const Radius.circular(
+                                  16,
+                                ),
                     ),
-                    boxShadow: const [
+
+                    boxShadow:
+                        const [
                       BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
+                        color:
+                            Colors.black12,
+                        blurRadius:
+                            4,
+                        offset:
+                            Offset(0, 2),
                       ),
                     ],
                   ),
+
                   child: Column(
                     crossAxisAlignment:
                         CrossAxisAlignment.start,
+
                     children: [
+                      // ==========================================
+                      // IMAGEN
+                      // ==========================================
+
                       if (image != null) ...[
                         ClipRRect(
                           borderRadius:
-                              BorderRadius.circular(12),
-                          child: Image.file(
+                              BorderRadius.circular(
+                            12,
+                          ),
+
+                          child:
+                              Image.file(
                             image!,
                             width: 220,
                             height: 220,
                             fit: BoxFit.cover,
                           ),
                         ),
+
                         if (message.isNotEmpty &&
                             message !=
                                 '📷 Foto de ingredientes')
-                          const SizedBox(height: 8),
+                          const SizedBox(
+                            height: 8,
+                          ),
                       ],
+
+                      // ==========================================
+                      // TEXTO
+                      // ==========================================
 
                       if (message.isNotEmpty &&
                           (image == null ||
@@ -1086,29 +1605,49 @@ class _ChatBubble extends StatelessWidget {
                         Align(
                           alignment:
                               Alignment.centerLeft,
-                          child: Text(
+
+                          child:
+                              Text(
                             message,
-                            style: TextStyle(
-                              color: isUser
-                                  ? Colors.white
-                                  : Colors.black87,
-                              fontSize: 15,
+
+                            style:
+                                TextStyle(
+                              color:
+                                  isUser
+                                      ? Colors.white
+                                      : Colors.black87,
+
+                              fontSize:
+                                  15,
                             ),
                           ),
                         ),
 
-                      const SizedBox(height: 4),
+                      const SizedBox(
+                        height: 4,
+                      ),
+
+                      // ==========================================
+                      // HORA
+                      // ==========================================
 
                       Align(
                         alignment:
                             Alignment.bottomRight,
-                        child: Text(
+
+                        child:
+                            Text(
                           time,
-                          style: TextStyle(
-                            color: isUser
-                                ? Colors.white70
-                                : Colors.grey,
-                            fontSize: 10,
+
+                          style:
+                              TextStyle(
+                            color:
+                                isUser
+                                    ? Colors.white70
+                                    : Colors.grey,
+
+                            fontSize:
+                                10,
                           ),
                         ),
                       ),
@@ -1117,93 +1656,184 @@ class _ChatBubble extends StatelessWidget {
                 ),
               ),
 
+              // ==================================================
+              // AVATAR USUARIO
+              // ==================================================
+
               if (isUser)
-                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 8,
+                ),
 
               if (isUser)
                 const CircleAvatar(
                   backgroundColor:
-                      Color(0xFFFDFBF7),
+                      Color(
+                    0xFFFDFBF7,
+                  ),
+
                   radius: 16,
-                  child: Icon(
+
+                  child:
+                      Icon(
                     Icons.person,
                     size: 16,
-                    color: Color(0xFF2ECC71),
+                    color:
+                        Color(
+                      0xFF2ECC71,
+                    ),
                   ),
                 ),
             ],
           ),
 
           // ========================================================
-          // BOTONES DE INGREDIENTES
+          // BOTONES INGREDIENTES
           // ========================================================
 
-          if (detectedIngredients != null &&
-              detectedIngredients!.isNotEmpty) ...[
-            const SizedBox(height: 8),
+          if (detectedIngredients !=
+                  null &&
+              detectedIngredients!
+                  .isNotEmpty) ...[
+            const SizedBox(
+              height: 8,
+            ),
 
             Padding(
               padding:
-                  const EdgeInsets.only(left: 40),
-              child: Wrap(
+                  const EdgeInsets.only(
+                left: 40,
+              ),
+
+              child:
+                  Wrap(
                 spacing: 8,
                 runSpacing: 6,
+
                 children: [
+                  // ==============================================
+                  // CONFIRMAR
+                  // ==============================================
+
                   ActionChip(
-                    avatar: Icon(
-                      Icons.check_circle_outline,
+                    avatar:
+                        Icon(
+                      Icons
+                          .check_circle_outline,
+
                       size: 16,
-                      color: actionTaken
-                          ? Colors.grey.shade500
-                          : Colors.white,
+
+                      color:
+                          actionTaken
+                              ? Colors
+                                  .grey
+                                  .shade500
+                              : Colors.white,
                     ),
-                    label: Text(
+
+                    label:
+                        Text(
                       'Confirmar',
-                      style: TextStyle(
-                        color: actionTaken
-                            ? Colors.grey.shade500
-                            : Colors.white,
-                        fontSize: 12,
+
+                      style:
+                          TextStyle(
+                        color:
+                            actionTaken
+                                ? Colors
+                                    .grey
+                                    .shade500
+                                : Colors.white,
+
+                        fontSize:
+                            12,
+
                         fontWeight:
                             FontWeight.bold,
                       ),
                     ),
-                    backgroundColor: actionTaken
-                        ? Colors.grey.shade200
-                        : const Color(0xFF2ECC71),
-                    onPressed: actionTaken
-                        ? null
-                        : onConfirm,
+
+                    backgroundColor:
+                        actionTaken
+                            ? Colors
+                                .grey
+                                .shade200
+                            : const Color(
+                                0xFF2ECC71,
+                              ),
+
+                    onPressed:
+                        actionTaken
+                            ? null
+                            : onConfirm,
                   ),
 
+                  // ==============================================
+                  // EDITAR
+                  // ==============================================
+
                   ActionChip(
-                    avatar: Icon(
-                      Icons.edit_outlined,
+                    avatar:
+                        Icon(
+                      Icons
+                          .edit_outlined,
+
                       size: 16,
-                      color: actionTaken
-                          ? Colors.grey.shade500
-                          : const Color(0xFF27AE60),
+
+                      color:
+                          actionTaken
+                              ? Colors
+                                  .grey
+                                  .shade500
+                              : const Color(
+                                  0xFF27AE60,
+                                ),
                     ),
-                    label: Text(
+
+                    label:
+                        Text(
                       'Editar',
-                      style: TextStyle(
-                        color: actionTaken
-                            ? Colors.grey.shade500
-                            : const Color(0xFF27AE60),
-                        fontSize: 12,
+
+                      style:
+                          TextStyle(
+                        color:
+                            actionTaken
+                                ? Colors
+                                    .grey
+                                    .shade500
+                                : const Color(
+                                    0xFF27AE60,
+                                  ),
+
+                        fontSize:
+                            12,
                       ),
                     ),
-                    backgroundColor: actionTaken
-                        ? Colors.grey.shade100
-                        : const Color(0xFFE8F8F0),
-                    side: BorderSide(
-                      color: actionTaken
-                          ? Colors.grey.shade300
-                          : const Color(0xFF2ECC71),
+
+                    backgroundColor:
+                        actionTaken
+                            ? Colors
+                                .grey
+                                .shade100
+                            : const Color(
+                                0xFFE8F8F0,
+                              ),
+
+                    side:
+                        BorderSide(
+                      color:
+                          actionTaken
+                              ? Colors
+                                  .grey
+                                  .shade300
+                              : const Color(
+                                  0xFF2ECC71,
+                                ),
                     ),
-                    onPressed: actionTaken
-                        ? null
-                        : onEdit,
+
+                    onPressed:
+                        actionTaken
+                            ? null
+                            : onEdit,
                   ),
                 ],
               ),
@@ -1219,62 +1849,95 @@ class _ChatBubble extends StatelessWidget {
 // INDICADOR "AMELIA ESTÁ ESCRIBIENDO"
 // ================================================================
 
-class _TypingBubble extends StatelessWidget {
+class _TypingBubble
+    extends StatelessWidget {
   final String text;
 
   const _TypingBubble({
-    this.text = 'Amelia está pensando...',
+    this.text =
+        'Amelia está pensando...',
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Padding(
-      padding: const EdgeInsets.only(
+      padding:
+          const EdgeInsets.only(
         left: 40,
         bottom: 12,
       ),
+
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment:
+            Alignment.centerLeft,
+
         child: Container(
           padding:
               const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 10,
           ),
-          decoration: BoxDecoration(
-            color: Colors.white,
+
+          decoration:
+              BoxDecoration(
+            color:
+                Colors.white,
+
             borderRadius:
-                BorderRadius.circular(16),
-            boxShadow: const [
+                BorderRadius.circular(
+              16,
+            ),
+
+            boxShadow:
+                const [
               BoxShadow(
-                color: Colors.black12,
-                blurRadius: 4,
-                offset: Offset(0, 2),
+                color:
+                    Colors.black12,
+                blurRadius:
+                    4,
+                offset:
+                    Offset(0, 2),
               ),
             ],
           ),
-          child: Row(
+
+          child:
+              Row(
             mainAxisSize:
                 MainAxisSize.min,
+
             children: [
               const SizedBox(
                 width: 14,
                 height: 14,
+
                 child:
                     CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Color(0xFF2ECC71),
+                  color:
+                      Color(
+                    0xFF2ECC71,
+                  ),
                 ),
               ),
 
-              const SizedBox(width: 10),
+              const SizedBox(
+                width: 10,
+              ),
 
               Flexible(
-                child: Text(
+                child:
+                    Text(
                   text,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 13,
+
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.grey,
+                    fontSize:
+                        13,
                   ),
                 ),
               ),
@@ -1290,143 +1953,234 @@ class _TypingBubble extends StatelessWidget {
 // BURBUJA DE RECETA
 // ================================================================
 
-class _RecipeBubble extends StatelessWidget {
-  final Map<String, dynamic> recipeData;
+class _RecipeBubble
+    extends StatelessWidget {
+  final Map<String, dynamic>
+      recipeData;
+
   final VoidCallback onCook;
   final VoidCallback onSave;
+  final VoidCallback onPublish;
+
   final String time;
 
   const _RecipeBubble({
     required this.recipeData,
     required this.onCook,
     required this.onSave,
+    required this.onPublish,
     required this.time,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     final ingredients =
         List<String>.from(
-      recipeData['ingredients'] ?? [],
+      recipeData['ingredients'] ??
+          [],
     );
 
     final optionalIngredients =
         List<String>.from(
-      recipeData['optionalIngredients'] ?? [],
+      recipeData[
+              'optionalIngredients'] ??
+          [],
     );
 
     final preparation =
         List<String>.from(
-      recipeData['preparation'] ?? [],
+      recipeData['preparation'] ??
+          [],
     );
 
     final name =
-        recipeData['name'] ?? 'Receta';
+        recipeData['name'] ??
+            'Receta';
 
     final description =
-        recipeData['description'] ?? '';
+        recipeData['description'] ??
+            '';
 
     final servings =
         recipeData['servings'];
 
     final recipeTime =
-        recipeData['time'] ?? '';
+        recipeData['time'] ??
+            '';
 
     final difficulty =
-        recipeData['difficulty'] ?? '';
+        recipeData['difficulty'] ??
+            '';
 
     final advice =
-        recipeData['advice'] ?? '';
+        recipeData['advice'] ??
+            '';
+
+    final publicadaEnForo =
+        recipeData['publicadaEnForo'] ??
+            false;
 
     return Padding(
-      padding: const EdgeInsets.only(
+      padding:
+          const EdgeInsets.only(
         bottom: 16,
       ),
+
       child: Row(
         crossAxisAlignment:
             CrossAxisAlignment.start,
+
         children: [
+          // ======================================================
+          // AVATAR AMELIA
+          // ======================================================
+
           CircleAvatar(
             radius: 16,
+
             backgroundColor:
-                const Color(0xFF2ECC71),
+                const Color(
+              0xFF2ECC71,
+            ),
+
             backgroundImage:
                 const AssetImage(
               'assets/amelia.jpg',
             ),
+
             onBackgroundImageError:
-                (error, stackTrace) {},
-            child: const Icon(
+                (
+              error,
+              stackTrace,
+            ) {},
+
+            child:
+                const Icon(
               Icons.room_service,
               size: 16,
-              color: Colors.white,
+              color:
+                  Colors.white,
             ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(
+            width: 8,
+          ),
+
+          // ======================================================
+          // RECETA
+          // ======================================================
 
           Flexible(
             child: Container(
               padding:
-                  const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
+                  const EdgeInsets.all(
+                16,
+              ),
+
+              decoration:
+                  BoxDecoration(
+                color:
+                    Colors.white,
+
                 borderRadius:
-                    BorderRadius.circular(16),
-                boxShadow: const [
+                    BorderRadius.circular(
+                  16,
+                ),
+
+                boxShadow:
+                    const [
                   BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
+                    color:
+                        Colors.black12,
+                    blurRadius:
+                        8,
+                    offset:
+                        Offset(0, 2),
                   ),
                 ],
-                border: Border.all(
+
+                border:
+                    Border.all(
                   color:
-                      const Color(0xFF2ECC71),
+                      const Color(
+                    0xFF2ECC71,
+                  ),
                   width: 2,
                 ),
               ),
-              child: Column(
+
+              child:
+                  Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
+
                 children: [
+                  // ==================================================
+                  // NOMBRE
+                  // ==================================================
+
                   Text(
                     '🍽️ $name',
+
                     style:
                         const TextStyle(
-                      fontSize: 20,
+                      fontSize:
+                          20,
                       fontWeight:
                           FontWeight.bold,
                       color:
-                          Color(0xFF27AE60),
+                          Color(
+                        0xFF27AE60,
+                      ),
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(
+                    height: 8,
+                  ),
 
-                  if (description.isNotEmpty) ...[
+                  // ==================================================
+                  // DESCRIPCIÓN
+                  // ==================================================
+
+                  if (description
+                      .isNotEmpty) ...[
                     Text(
                       description,
+
                       style:
                           const TextStyle(
-                        fontSize: 14,
-                        height: 1.4,
+                        fontSize:
+                            14,
+                        height:
+                            1.4,
                         color:
                             Colors.black87,
                       ),
                     ),
+
                     const SizedBox(
                       height: 12,
                     ),
                   ],
 
+                  // ==================================================
+                  // INFORMACIÓN
+                  // ==================================================
+
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
+
                     children: [
-                      if (servings != null)
+                      if (servings !=
+                          null)
                         _InfoChip(
-                          icon: Icons.people,
+                          icon:
+                              Icons.people,
                           text:
                               '$servings porción(es)',
                         ),
@@ -1435,7 +2189,8 @@ class _RecipeBubble extends StatelessWidget {
                           .toString()
                           .isNotEmpty)
                         _InfoChip(
-                          icon: Icons.timer,
+                          icon:
+                              Icons.timer,
                           text:
                               recipeTime,
                         ),
@@ -1444,8 +2199,9 @@ class _RecipeBubble extends StatelessWidget {
                           .toString()
                           .isNotEmpty)
                         _InfoChip(
-                          icon: Icons
-                              .signal_cellular_alt,
+                          icon:
+                              Icons
+                                  .signal_cellular_alt,
                           text:
                               difficulty,
                         ),
@@ -1456,48 +2212,73 @@ class _RecipeBubble extends StatelessWidget {
                     height: 16,
                   ),
 
+                  // ==================================================
+                  // INGREDIENTES
+                  // ==================================================
+
                   const Text(
                     '🥘 Ingredientes',
+
                     style:
                         TextStyle(
                       fontWeight:
                           FontWeight.bold,
-                      fontSize: 16,
+                      fontSize:
+                          16,
                       color:
-                          Color(0xFF27AE60),
+                          Color(
+                        0xFF27AE60,
+                      ),
                     ),
                   ),
 
-                  const SizedBox(height: 6),
+                  const SizedBox(
+                    height: 6,
+                  ),
 
                   ...ingredients.map(
-                    (ingredient) =>
+                    (
+                      ingredient,
+                    ) =>
                         Padding(
                       padding:
                           const EdgeInsets
                               .symmetric(
-                        vertical: 3,
+                        vertical:
+                            3,
                       ),
-                      child: Row(
+
+                      child:
+                          Row(
                         crossAxisAlignment:
                             CrossAxisAlignment
                                 .start,
+
                         children: [
                           const Icon(
                             Icons.circle,
-                            size: 6,
+                            size:
+                                6,
                             color:
-                                Color(0xFF2ECC71),
+                                Color(
+                              0xFF2ECC71,
+                            ),
                           ),
+
                           const SizedBox(
-                            width: 8,
+                            width:
+                                8,
                           ),
+
                           Expanded(
-                            child: Text(
+                            child:
+                                Text(
                               ingredient,
+
                               style:
                                   const TextStyle(
-                                fontSize: 14,
+                                fontSize:
+                                    14,
                               ),
                             ),
                           ),
@@ -1505,6 +2286,10 @@ class _RecipeBubble extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                  // ==================================================
+                  // OPCIONALES
+                  // ==================================================
 
                   if (optionalIngredients
                       .isNotEmpty) ...[
@@ -1514,46 +2299,65 @@ class _RecipeBubble extends StatelessWidget {
 
                     const Text(
                       '✨ Ingredientes opcionales',
+
                       style:
                           TextStyle(
                         fontWeight:
                             FontWeight.bold,
-                        fontSize: 14,
+                        fontSize:
+                            14,
                       ),
                     ),
 
-                    const SizedBox(height: 4),
+                    const SizedBox(
+                      height: 4,
+                    ),
 
                     ...optionalIngredients
                         .map(
-                      (ingredient) =>
+                      (
+                        ingredient,
+                      ) =>
                           Padding(
                         padding:
                             const EdgeInsets
                                 .symmetric(
-                          vertical: 2,
+                          vertical:
+                              2,
                         ),
-                        child: Row(
+
+                        child:
+                            Row(
                           crossAxisAlignment:
                               CrossAxisAlignment
                                   .start,
+
                           children: [
                             const Icon(
                               Icons
                                   .add_circle_outline,
-                              size: 15,
+                              size:
+                                  15,
                               color:
-                                  Color(0xFFF39C12),
+                                  Color(
+                                0xFFF39C12,
+                              ),
                             ),
+
                             const SizedBox(
-                              width: 8,
+                              width:
+                                  8,
                             ),
+
                             Expanded(
-                              child: Text(
+                              child:
+                                  Text(
                                 ingredient,
+
                                 style:
                                     const TextStyle(
-                                  fontSize: 14,
+                                  fontSize:
+                                      14,
                                 ),
                               ),
                             ),
@@ -1567,15 +2371,23 @@ class _RecipeBubble extends StatelessWidget {
                     height: 16,
                   ),
 
+                  // ==================================================
+                  // PREPARACIÓN
+                  // ==================================================
+
                   const Text(
                     '👩‍🍳 Preparación',
+
                     style:
                         TextStyle(
                       fontWeight:
                           FontWeight.bold,
-                      fontSize: 16,
+                      fontSize:
+                          16,
                       color:
-                          Color(0xFF27AE60),
+                          Color(
+                        0xFF27AE60,
+                      ),
                     ),
                   ),
 
@@ -1585,32 +2397,47 @@ class _RecipeBubble extends StatelessWidget {
 
                   ...List.generate(
                     preparation.length,
-                    (index) {
+                    (
+                      index,
+                    ) {
                       return Padding(
                         padding:
                             const EdgeInsets
                                 .only(
-                          bottom: 8,
+                          bottom:
+                              8,
                         ),
-                        child: Row(
+
+                        child:
+                            Row(
                           crossAxisAlignment:
                               CrossAxisAlignment
                                   .start,
+
                           children: [
                             Container(
-                              width: 26,
-                              height: 26,
+                              width:
+                                  26,
+                              height:
+                                  26,
+
                               decoration:
                                   const BoxDecoration(
-                                color: Color(
+                                color:
+                                    Color(
                                   0xFF2ECC71,
                                 ),
                                 shape:
-                                    BoxShape.circle,
+                                    BoxShape
+                                        .circle,
                               ),
-                              child: Center(
-                                child: Text(
+
+                              child:
+                                  Center(
+                                child:
+                                    Text(
                                   '${index + 1}',
+
                                   style:
                                       const TextStyle(
                                     color:
@@ -1623,17 +2450,22 @@ class _RecipeBubble extends StatelessWidget {
                             ),
 
                             const SizedBox(
-                              width: 10,
+                              width:
+                                  10,
                             ),
 
                             Expanded(
-                              child: Text(
+                              child:
+                                  Text(
                                 preparation[
                                     index],
+
                                 style:
                                     const TextStyle(
-                                  fontSize: 14,
-                                  height: 1.4,
+                                  fontSize:
+                                      14,
+                                  height:
+                                      1.4,
                                 ),
                               ),
                             ),
@@ -1642,6 +2474,10 @@ class _RecipeBubble extends StatelessWidget {
                       );
                     },
                   ),
+
+                  // ==================================================
+                  // CONSEJO
+                  // ==================================================
 
                   if (advice
                       .toString()
@@ -1653,28 +2489,37 @@ class _RecipeBubble extends StatelessWidget {
                     Container(
                       width:
                           double.infinity,
+
                       padding:
                           const EdgeInsets
-                              .all(12),
+                              .all(
+                        12,
+                      ),
+
                       decoration:
                           BoxDecoration(
                         color:
                             const Color(
                           0xFFFFF8E7,
                         ),
+
                         borderRadius:
-                            BorderRadius
-                                .circular(
+                            BorderRadius.circular(
                           10,
                         ),
                       ),
-                      child: Text(
+
+                      child:
+                          Text(
                         '💡 Consejo de Amelia\n'
                         '$advice',
+
                         style:
                             const TextStyle(
-                          fontSize: 13,
-                          height: 1.4,
+                          fontSize:
+                              13,
+                          height:
+                              1.4,
                         ),
                       ),
                     ),
@@ -1690,6 +2535,10 @@ class _RecipeBubble extends StatelessWidget {
 
                   Row(
                     children: [
+                      // ==============================================
+                      // MODO COCINAR
+                      // ==============================================
+
                       Expanded(
                         child:
                             ElevatedButton
@@ -1701,48 +2550,60 @@ class _RecipeBubble extends StatelessWidget {
                                 const Color(
                               0xFF2ECC71,
                             ),
+
                             padding:
                                 const EdgeInsets
                                     .symmetric(
-                              vertical: 10,
+                              vertical:
+                                  10,
                             ),
+
                             shape:
                                 RoundedRectangleBorder(
                               borderRadius:
-                                  BorderRadius
-                                      .circular(
+                                  BorderRadius.circular(
                                 10,
                               ),
                             ),
                           ),
+
                           icon:
                               const Icon(
                             Icons.chat,
                             color:
                                 Colors.white,
-                            size: 18,
+                            size:
+                                18,
                           ),
+
                           label:
                               const Text(
                             'Modo Cocinar',
+
                             style:
                                 TextStyle(
                               color:
                                   Colors.white,
-                              fontSize: 12,
+                              fontSize:
+                                  12,
                               fontWeight:
-                                  FontWeight
-                                      .bold,
+                                  FontWeight.bold,
                             ),
                           ),
+
                           onPressed:
                               onCook,
                         ),
                       ),
 
                       const SizedBox(
-                        width: 8,
+                        width:
+                            8,
                       ),
+
+                      // ==============================================
+                      // GUARDAR
+                      // ==============================================
 
                       Expanded(
                         child:
@@ -1758,45 +2619,56 @@ class _RecipeBubble extends StatelessWidget {
                                 0xFFF39C12,
                               ),
                             ),
+
                             padding:
                                 const EdgeInsets
                                     .symmetric(
-                              vertical: 10,
+                              vertical:
+                                  10,
                             ),
+
                             shape:
                                 RoundedRectangleBorder(
                               borderRadius:
-                                  BorderRadius
-                                      .circular(
+                                  BorderRadius.circular(
                                 10,
                               ),
                             ),
                           ),
+
                           icon:
                               const Icon(
                             Icons
                                 .favorite_border,
+
                             color:
                                 Color(
                               0xFFF39C12,
                             ),
-                            size: 18,
+
+                            size:
+                                18,
                           ),
+
                           label:
                               const Text(
                             'Guardar',
+
                             style:
                                 TextStyle(
                               color:
                                   Color(
                                 0xFFF39C12,
                               ),
-                              fontSize: 12,
+
+                              fontSize:
+                                  12,
+
                               fontWeight:
-                                  FontWeight
-                                      .bold,
+                                  FontWeight.bold,
                             ),
                           ),
+
                           onPressed:
                               onSave,
                         ),
@@ -1805,19 +2677,122 @@ class _RecipeBubble extends StatelessWidget {
                   ),
 
                   const SizedBox(
+                    height: 8,
+                  ),
+
+                  // ==================================================
+                  // PUBLICAR EN FORO
+                  // ==================================================
+
+                  SizedBox(
+                    width:
+                        double.infinity,
+
+                    child:
+                        OutlinedButton.icon(
+                      style:
+                          OutlinedButton
+                              .styleFrom(
+                        side:
+                            BorderSide(
+                          color:
+                              publicadaEnForo
+                                  ? Colors
+                                      .grey
+                                  : const Color(
+                                      0xFF27AE60,
+                                    ),
+                        ),
+
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          vertical:
+                              10,
+                        ),
+
+                        shape:
+                            RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(
+                            10,
+                          ),
+                        ),
+                      ),
+
+                      icon:
+                          Icon(
+                        publicadaEnForo
+                            ? Icons
+                                .check_circle_outline
+                            : Icons
+                                .forum_outlined,
+
+                        color:
+                            publicadaEnForo
+                                ? Colors
+                                    .grey
+                                : const Color(
+                                    0xFF27AE60,
+                                  ),
+
+                        size:
+                            18,
+                      ),
+
+                      label:
+                          Text(
+                        publicadaEnForo
+                            ? 'Publicada en foro'
+                            : 'Publicar en foro',
+
+                        style:
+                            TextStyle(
+                          color:
+                              publicadaEnForo
+                                  ? Colors
+                                      .grey
+                                  : const Color(
+                                      0xFF27AE60,
+                                    ),
+
+                          fontSize:
+                              12,
+
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+
+                      onPressed:
+                          publicadaEnForo
+                              ? null
+                              : onPublish,
+                    ),
+                  ),
+
+                  const SizedBox(
                     height: 6,
                   ),
+
+                  // ==================================================
+                  // HORA
+                  // ==================================================
 
                   Align(
                     alignment:
                         Alignment.centerRight,
-                    child: Text(
+
+                    child:
+                        Text(
                       time,
+
                       style:
                           const TextStyle(
                         color:
                             Colors.grey,
-                        fontSize: 10,
+                        fontSize:
+                            10,
                       ),
                     ),
                   ),
@@ -1835,7 +2810,8 @@ class _RecipeBubble extends StatelessWidget {
 // INFO CHIP
 // ================================================================
 
-class _InfoChip extends StatelessWidget {
+class _InfoChip
+    extends StatelessWidget {
   final IconData icon;
   final String text;
 
@@ -1845,37 +2821,61 @@ class _InfoChip extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Container(
       padding:
           const EdgeInsets.symmetric(
         horizontal: 10,
         vertical: 6,
       ),
-      decoration: BoxDecoration(
+
+      decoration:
+          BoxDecoration(
         color:
-            const Color(0xFFF1F8F4),
+            const Color(
+          0xFFF1F8F4,
+        ),
+
         borderRadius:
-            BorderRadius.circular(20),
+            BorderRadius.circular(
+          20,
+        ),
       ),
-      child: Row(
+
+      child:
+          Row(
         mainAxisSize:
             MainAxisSize.min,
+
         children: [
           Icon(
             icon,
-            size: 15,
+            size:
+                15,
             color:
-                const Color(0xFF27AE60),
+                const Color(
+              0xFF27AE60,
+            ),
           ),
-          const SizedBox(width: 5),
+
+          const SizedBox(
+            width:
+                5,
+          ),
+
           Text(
             text,
+
             style:
                 const TextStyle(
-              fontSize: 12,
+              fontSize:
+                  12,
               color:
-                  Color(0xFF27AE60),
+                  Color(
+                0xFF27AE60,
+              ),
               fontWeight:
                   FontWeight.w500,
             ),
