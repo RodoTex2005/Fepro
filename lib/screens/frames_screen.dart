@@ -20,7 +20,7 @@ class _FramesScreenState extends State<FramesScreen> {
       'id': 'classic',
       'name': 'Clásico',
       'icon': Icons.circle,
-      'color': Colors.grey,
+      'color': const Color(0xFF7F8C8D),
       'requirement': 'Sin requisitos',
       'unlocked': true,
       'gradient': null,
@@ -29,50 +29,81 @@ class _FramesScreenState extends State<FramesScreen> {
       'id': 'beginner',
       'name': 'Principiante',
       'icon': Icons.auto_awesome,
-      'color': const Color(0xFFE9783F),
+      'color': const Color(0xFF1ABC9C),
       'requirement': 'Publica tu primera receta',
       'unlocked': false,
-      'gradient': null,
+      'gradient': const LinearGradient(
+        colors: [
+          Color(0xFF1ABC9C),
+          Color(0xFF16A085),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
     },
     {
       'id': 'star',
       'name': 'Receta Estrella',
       'icon': Icons.star,
-      'color': const Color(0xFFFFD700),
+      'color': const Color(0xFF3498DB),
       'requirement': '+50 likes en una receta',
       'unlocked': false,
-      'gradient': null,
+      'gradient': const LinearGradient(
+        colors: [
+          Color(0xFF3498DB),
+          Color(0xFF2980B9),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
     },
     {
       'id': 'trending',
       'name': 'Tendencia',
       'icon': Icons.local_fire_department,
-      'color': const Color(0xFFFF6B35),
+      'color': const Color(0xFFE74C3C),
       'requirement': 'Receta más likeada de la semana',
       'unlocked': false,
-      'gradient': null,
+      'gradient': const LinearGradient(
+        colors: [
+          Color(0xFFE74C3C),
+          Color(0xFFC0392B),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
     },
     {
       'id': 'master',
       'name': 'Maestro Cocinero',
       'icon': Icons.workspace_premium,
-      'color': const Color(0xFF9B59B6),
+      'color': const Color(0xFF8E44AD),
       'requirement': '5 recetas con +30 likes',
       'unlocked': false,
-      'gradient': null,
+      'gradient': const LinearGradient(
+        colors: [
+          Color(0xFF8E44AD),
+          Color(0xFF6C3483),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
     },
     {
       'id': 'champion',
       'name': 'Campeón',
       'icon': Icons.emoji_events,
-      'color': const Color(0xFFFFD700),
+      'color': const Color(0xFF2C3E50),
       'requirement': '100 recetas guardadas',
       'unlocked': false,
       'gradient': const LinearGradient(
         colors: [
           Color(0xFFFFD700),
-          Color(0xFFFF6B35),
+          Color(0xFF8E44AD),
+          Color(0xFF2C3E50),
         ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
     },
   ];
@@ -736,7 +767,7 @@ class _FramesScreenState extends State<FramesScreen> {
                                 color:
                                     isSelected
                                         ? const Color(
-                                            0xFFE9783F,
+                                            0xFF2C3E50,
                                           )
                                         : Colors
                                             .grey

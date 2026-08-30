@@ -9,7 +9,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 class PublishRecipeScreen extends StatefulWidget {
   final Map<String, dynamic> recipe;
 
-  // Si es true, primero muestra la invitación
+  // Si es true, primero muestra:
   // "¿Te gustaría compartir tu resultado?"
   final bool showShareInvitation;
 
@@ -29,10 +29,11 @@ class _PublishRecipeScreenState
   final ImagePicker _picker = ImagePicker();
 
   File? _finalDishImage;
+
   bool _isPublishing = false;
 
-  // Controla si ya se mostró la invitación
-  // y se puede tomar la foto.
+  // false = invitación
+  // true  = pantalla para tomar/subir foto
   late bool _showCameraSection;
 
   @override
@@ -51,16 +52,15 @@ class _PublishRecipeScreenState
     if (_isPublishing) return;
 
     try {
-      final XFile? picked = await _picker.pickImage(
+      final XFile? picked =
+          await _picker.pickImage(
         source: ImageSource.camera,
         maxWidth: 1200,
         maxHeight: 1200,
         imageQuality: 85,
       );
 
-      if (picked == null) {
-        return;
-      }
+      if (picked == null) return;
 
       if (!mounted) return;
 
@@ -89,16 +89,15 @@ class _PublishRecipeScreenState
     if (_isPublishing) return;
 
     try {
-      final XFile? picked = await _picker.pickImage(
+      final XFile? picked =
+          await _picker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 1200,
         maxHeight: 1200,
         imageQuality: 85,
       );
 
-      if (picked == null) {
-        return;
-      }
+      if (picked == null) return;
 
       if (!mounted) return;
 
@@ -120,7 +119,7 @@ class _PublishRecipeScreenState
   }
 
   // ============================================================
-  // CONTINUAR A LA PUBLICACIÓN
+  // CONTINUAR DESDE LA INVITACIÓN
   // ============================================================
 
   void _continueToPublish() {
@@ -132,19 +131,38 @@ class _PublishRecipeScreenState
   }
 
   // ============================================================
-  // PUBLICAR
+  // OBTENER ID DE LA RECETA
+  // ============================================================
+
+  String? _getRecipeId() {
+    final id =
+        widget.recipe['recetaId'] ??
+        widget.recipe['id'];
+
+    if (id == null) return null;
+
+    final idString = id.toString().trim();
+
+    if (idString.isEmpty) return null;
+
+    return idString;
+  }
+
+  // ============================================================
+  // PUBLICAR RECETA
   // ============================================================
 
   Future<void> _publishRecipe() async {
     // ----------------------------------------------------------
-    // COMPROBAR QUE HAYA FOTO
+    // COMPROBAR FOTO
     // ----------------------------------------------------------
 
     if (_finalDishImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            '📸 Primero toma una foto o elige una imagen de tu platillo final.',
+            '📸 Primero toma una foto o elige una imagen '
+            'de tu platillo final.',
           ),
           backgroundColor: Color(0xFFF39C12),
         ),
@@ -157,7 +175,8 @@ class _PublishRecipeScreenState
     // COMPROBAR USUARIO
     // ----------------------------------------------------------
 
-    final user = FirebaseAuth.instance.currentUser;
+    final user =
+        FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -173,14 +192,12 @@ class _PublishRecipeScreenState
     }
 
     // ----------------------------------------------------------
-    // OBTENER ID DE RECETA
+    // OBTENER ID
     // ----------------------------------------------------------
 
-    final recetaId = widget.recipe['recetaId'] ??
-    widget.recipe['id'];
+    final recetaId = _getRecipeId();
 
-    if (recetaId == null ||
-        recetaId.toString().isEmpty) {
+    if (recetaId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -193,24 +210,28 @@ class _PublishRecipeScreenState
       return;
     }
 
+    if (!mounted) return;
+
     setState(() {
       _isPublishing = true;
     });
 
     try {
-      // --------------------------------------------------------
-      // REFERENCIA A LA RECETA
-      // --------------------------------------------------------
+      // ========================================================
+      // REFERENCIA DE FIRESTORE
+      // ========================================================
 
-      final recetaRef = FirebaseFirestore.instance
-          .collection('recetas')
-          .doc(recetaId.toString());
+      final recetaRef =
+          FirebaseFirestore.instance
+              .collection('recetas')
+              .doc(recetaId);
 
-      // --------------------------------------------------------
+      // ========================================================
       // COMPROBAR QUE LA RECETA EXISTA
-      // --------------------------------------------------------
+      // ========================================================
 
-      final recetaSnapshot = await recetaRef.get();
+      final recetaSnapshot =
+          await recetaRef.get();
 
       if (!recetaSnapshot.exists) {
         throw Exception(
@@ -218,11 +239,12 @@ class _PublishRecipeScreenState
         );
       }
 
-      final datos = recetaSnapshot.data();
+      final datos =
+          recetaSnapshot.data();
 
-      // --------------------------------------------------------
+      // ========================================================
       // COMPROBAR SI YA ESTÁ PUBLICADA
-      // --------------------------------------------------------
+      // ========================================================
 
       if (datos?['publicadaEnForo'] == true) {
         if (!mounted) return;
@@ -236,16 +258,17 @@ class _PublishRecipeScreenState
           ),
         );
 
-        Navigator.pop(context);
+        Navigator.pop(context, true);
+
         return;
       }
 
-      // --------------------------------------------------------
-      // RUTA DE LA FOTO EN FIREBASE STORAGE
-      // --------------------------------------------------------
+      // ========================================================
+      // RUTA DE STORAGE
+      // ========================================================
 
       final storagePath =
-          'platillos/${user.uid}/${recetaId.toString()}.jpg';
+          'platillos/${user.uid}/$recetaId.jpg';
 
       final storageRef =
           FirebaseStorage.instance
@@ -253,12 +276,14 @@ class _PublishRecipeScreenState
               .child(storagePath);
 
       debugPrint(
-        'SUBIENDO FOTO A STORAGE: $storagePath',
+        'SUBIENDO FOTO A STORAGE:',
       );
 
-      // --------------------------------------------------------
+      debugPrint(storagePath);
+
+      // ========================================================
       // SUBIR FOTO
-      // --------------------------------------------------------
+      // ========================================================
 
       await storageRef.putFile(
         _finalDishImage!,
@@ -268,40 +293,50 @@ class _PublishRecipeScreenState
       );
 
       debugPrint(
-        'FOTO SUBIDA CORRECTAMENTE A STORAGE',
+        'FOTO SUBIDA CORRECTAMENTE',
       );
 
-      // --------------------------------------------------------
-      // OBTENER URL DE LA FOTO
-      // --------------------------------------------------------
+      // ========================================================
+      // OBTENER URL
+      // ========================================================
 
       final fotoPlatilloUrl =
           await storageRef.getDownloadURL();
 
       debugPrint(
-        'URL DE LA FOTO: $fotoPlatilloUrl',
+        'URL DE FOTO:',
       );
 
-      // --------------------------------------------------------
-      // ACTUALIZAR RECETA EN FIRESTORE
-      // --------------------------------------------------------
+      debugPrint(fotoPlatilloUrl);
+
+      // ========================================================
+      // ACTUALIZAR RECETA
+      // ========================================================
 
       await recetaRef.update({
-        'fotoPlatilloUrl': fotoPlatilloUrl,
-        'publicadaEnForo': true,
+        'fotoPlatilloUrl':
+            fotoPlatilloUrl,
+
+        'publicadaEnForo':
+            true,
+
         'fechaPublicacionForo':
             FieldValue.serverTimestamp(),
-        'likes': 0,
-        'comentarios': 0,
+
+        'likes':
+            0,
+
+        'comentarios':
+            0,
       });
 
       debugPrint(
-        'RECETA ACTUALIZADA EN FIRESTORE',
+        'RECETA PUBLICADA CORRECTAMENTE',
       );
 
-      // --------------------------------------------------------
-      // PUBLICACIÓN EXITOSA
-      // --------------------------------------------------------
+      // ========================================================
+      // TERMINAR
+      // ========================================================
 
       if (!mounted) return;
 
@@ -314,22 +349,21 @@ class _PublishRecipeScreenState
         ),
       );
 
+      // true = la publicación se realizó
       Navigator.pop(context, true);
     } catch (e) {
-      // --------------------------------------------------------
-      // ERROR
-      // --------------------------------------------------------
-
       debugPrint(
-        'ERROR AL PUBLICAR RECETA: $e',
+        'ERROR AL PUBLICAR RECETA:',
       );
+
+      debugPrint(e.toString());
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '❌ No se pudo publicar la receta: $e',
+            '❌ No se pudo publicar la receta:\n$e',
           ),
           backgroundColor: Colors.red,
         ),
@@ -351,23 +385,21 @@ class _PublishRecipeScreenState
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
-
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+              MainAxisAlignment.center,
           children: [
             // ----------------------------------------------------
-            // ICONO / CELEBRACIÓN
+            // ICONO
             // ----------------------------------------------------
 
             Container(
               width: 110,
               height: 110,
-
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F8F0),
+              decoration: const BoxDecoration(
+                color: Color(0xFFE8F8F0),
                 shape: BoxShape.circle,
               ),
-
               child: const Center(
                 child: Text(
                   '🎉',
@@ -387,7 +419,6 @@ class _PublishRecipeScreenState
             const Text(
               '¡Lo lograste!',
               textAlign: TextAlign.center,
-
               style: TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.bold,
@@ -400,7 +431,6 @@ class _PublishRecipeScreenState
             const Text(
               'Tu platillo está listo 🍽️',
               textAlign: TextAlign.center,
-
               style: TextStyle(
                 fontSize: 21,
                 fontWeight: FontWeight.w600,
@@ -417,7 +447,6 @@ class _PublishRecipeScreenState
             const Text(
               '¿Te gustaría compartir\ntu resultado?',
               textAlign: TextAlign.center,
-
               style: TextStyle(
                 fontSize: 25,
                 fontWeight: FontWeight.bold,
@@ -429,9 +458,9 @@ class _PublishRecipeScreenState
             const SizedBox(height: 18),
 
             const Text(
-              '📸 Toma una foto de tu platillo\ny compártelo con la comunidad.',
+              '📸 Toma una foto de tu platillo\n'
+              'y compártelo con la comunidad.',
               textAlign: TextAlign.center,
-
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.black54,
@@ -447,21 +476,16 @@ class _PublishRecipeScreenState
 
             Container(
               width: double.infinity,
-
               padding: const EdgeInsets.all(16),
-
               decoration: BoxDecoration(
                 color: Colors.white,
-
                 borderRadius:
                     BorderRadius.circular(16),
-
                 border: Border.all(
                   color: const Color(0xFFE9783F),
                   width: 1.5,
                 ),
               ),
-
               child: const Column(
                 children: [
                   Text(
@@ -477,7 +501,6 @@ class _PublishRecipeScreenState
                     'Podrías aparecer entre las\n'
                     'recetas destacadas de la semana.',
                     textAlign: TextAlign.center,
-
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -492,7 +515,6 @@ class _PublishRecipeScreenState
                     '❤️ Recibe likes y descubre qué opinan '
                     'otros usuarios sobre tu platillo.',
                     textAlign: TextAlign.center,
-
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.black54,
@@ -511,30 +533,25 @@ class _PublishRecipeScreenState
 
             SizedBox(
               width: double.infinity,
-
               child: ElevatedButton.icon(
                 style:
                     ElevatedButton.styleFrom(
                   backgroundColor:
                       const Color(0xFFE9783F),
-
                   padding:
                       const EdgeInsets.symmetric(
                     vertical: 16,
                   ),
-
                   shape:
                       RoundedRectangleBorder(
                     borderRadius:
                         BorderRadius.circular(14),
                   ),
                 ),
-
                 icon: const Icon(
                   Icons.camera_alt,
                   color: Colors.white,
                 ),
-
                 label: const Text(
                   'Compartir mi resultado',
                   style: TextStyle(
@@ -543,8 +560,8 @@ class _PublishRecipeScreenState
                     color: Colors.white,
                   ),
                 ),
-
-                onPressed: _continueToPublish,
+                onPressed:
+                    _continueToPublish,
               ),
             ),
 
@@ -556,17 +573,16 @@ class _PublishRecipeScreenState
 
             SizedBox(
               width: double.infinity,
-
               child: TextButton(
                 onPressed:
                     _isPublishing
                         ? null
-                        : () =>
+                        : () {
                             Navigator.pop(
                               context,
                               false,
-                            ),
-
+                            );
+                          },
                 child: const Text(
                   'Ahora no',
                   style: TextStyle(
@@ -588,20 +604,23 @@ class _PublishRecipeScreenState
 
   Widget _buildPublishContent() {
     final recipeName =
-        widget.recipe['name'] ?? 'Receta';
+        widget.recipe['name'] ??
+        widget.recipe['nombre'] ??
+        widget.recipe['titulo'] ??
+        'Receta';
 
     final description =
-        widget.recipe['description'] ?? '';
+        widget.recipe['description'] ??
+        widget.recipe['descripcion'] ??
+        '';
 
     return SafeArea(
       child: Padding(
         padding:
             const EdgeInsets.all(20),
-
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
-
           children: [
             // ==================================================
             // INSTRUCCIÓN
@@ -630,7 +649,7 @@ class _PublishRecipeScreenState
             const SizedBox(height: 20),
 
             // ==================================================
-            // NOMBRE DE RECETA
+            // NOMBRE
             // ==================================================
 
             Text(
@@ -643,6 +662,7 @@ class _PublishRecipeScreenState
 
             if (description
                 .toString()
+                .trim()
                 .isNotEmpty) ...[
               const SizedBox(height: 6),
 
@@ -664,26 +684,21 @@ class _PublishRecipeScreenState
 
             Expanded(
               child: GestureDetector(
-                onTap: _openCamera,
-
+                onTap: _isPublishing
+                    ? null
+                    : _openCamera,
                 child: Container(
                   width: double.infinity,
-
                   decoration: BoxDecoration(
                     color: Colors.white,
-
                     borderRadius:
                         BorderRadius.circular(18),
-
                     border: Border.all(
                       color:
-                          const Color(
-                        0xFFE9783F,
-                      ),
+                          const Color(0xFFE9783F),
                       width: 2,
                     ),
                   ),
-
                   child:
                       _finalDishImage != null
                           ? ClipRRect(
@@ -691,7 +706,6 @@ class _PublishRecipeScreenState
                                   BorderRadius.circular(
                                 16,
                               ),
-
                               child:
                                   Image.file(
                                 _finalDishImage!,
@@ -705,12 +719,11 @@ class _PublishRecipeScreenState
                             )
                           : Column(
                               mainAxisAlignment:
-                                  MainAxisAlignment.center,
-
+                                  MainAxisAlignment
+                                      .center,
                               children: [
                                 const Icon(
-                                  Icons
-                                      .camera_alt,
+                                  Icons.camera_alt,
                                   size: 70,
                                   color:
                                       Color(
@@ -757,29 +770,24 @@ class _PublishRecipeScreenState
             const SizedBox(height: 16),
 
             // ==================================================
-            // ELEGIR DE GALERÍA
+            // GALERÍA
             // ==================================================
 
             SizedBox(
               width: double.infinity,
-
               child: OutlinedButton.icon(
                 style:
                     OutlinedButton.styleFrom(
                   side:
                       const BorderSide(
                     color:
-                        Color(
-                      0xFFE9783F,
-                    ),
+                        Color(0xFFE9783F),
                     width: 1.5,
                   ),
-
                   padding:
                       const EdgeInsets.symmetric(
                     vertical: 13,
                   ),
-
                   shape:
                       RoundedRectangleBorder(
                     borderRadius:
@@ -787,35 +795,23 @@ class _PublishRecipeScreenState
                       12,
                     ),
                   ),
-
                   backgroundColor:
                       Colors.white,
                 ),
-
-                icon:
-                    const Icon(
+                icon: const Icon(
                   Icons.photo_library_outlined,
                   color:
-                      Color(
-                    0xFFC95D2E,
-                  ),
+                      Color(0xFFC95D2E),
                 ),
-
-                label:
-                    const Text(
+                label: const Text(
                   'Elegir de galería',
-                  style:
-                      TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     color:
-                        Color(
-                      0xFFC95D2E,
-                    ),
+                        Color(0xFFC95D2E),
                   ),
                 ),
-
                 onPressed:
                     _isPublishing
                         ? null
@@ -826,28 +822,22 @@ class _PublishRecipeScreenState
             const SizedBox(height: 10),
 
             // ==================================================
-            // BOTÓN PUBLICAR
+            // PUBLICAR
             // ==================================================
 
             SizedBox(
               width: double.infinity,
-
               child: ElevatedButton.icon(
                 style:
                     ElevatedButton.styleFrom(
                   backgroundColor:
-                      const Color(
-                    0xFFE9783F,
-                  ),
-
+                      const Color(0xFFE9783F),
                   disabledBackgroundColor:
                       Colors.grey.shade300,
-
                   padding:
                       const EdgeInsets.symmetric(
                     vertical: 15,
                   ),
-
                   shape:
                       RoundedRectangleBorder(
                     borderRadius:
@@ -856,13 +846,11 @@ class _PublishRecipeScreenState
                     ),
                   ),
                 ),
-
                 icon:
                     _isPublishing
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-
                             child:
                                 CircularProgressIndicator(
                               strokeWidth: 2,
@@ -875,23 +863,18 @@ class _PublishRecipeScreenState
                             color:
                                 Colors.white,
                           ),
-
-                label:
-                    Text(
+                label: Text(
                   _isPublishing
                       ? 'Publicando...'
                       : 'Publicar en el foro',
-
                   style:
                       const TextStyle(
                     fontSize: 16,
                     fontWeight:
                         FontWeight.bold,
-                    color:
-                        Colors.white,
+                    color: Colors.white,
                   ),
                 ),
-
                 onPressed:
                     _isPublishing
                         ? null
@@ -905,7 +888,7 @@ class _PublishRecipeScreenState
   }
 
   // ============================================================
-  // INTERFAZ
+  // BUILD
   // ============================================================
 
   @override

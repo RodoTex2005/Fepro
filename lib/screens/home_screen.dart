@@ -61,13 +61,21 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedFontSize: 12,
         unselectedFontSize: 12,
         elevation: 8,
-        items: const [
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.room_service),
+            icon: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/amelia.jpg',
+                width: 24,
+                height: 24,
+                fit: BoxFit.cover,
+              ),
+            ),
             label: 'Amelia',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.menu_book), label: 'Foro'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Yo'),
+          const BottomNavigationBarItem(icon: Icon(Icons.menu_book), label: 'Foro'),
+          const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Yo'),
         ],
       ),
     );

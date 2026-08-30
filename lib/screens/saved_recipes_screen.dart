@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'recipe_screen.dart';
 
 class SavedRecipesScreen extends StatefulWidget {
@@ -46,44 +47,87 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
         '${guardadasSnapshot.docs.length}',
       );
 
-      List<Map<String, dynamic>> recetas = [];
+      final List<Map<String, dynamic>> recetas = [];
 
       for (final doc in guardadasSnapshot.docs) {
         final dataGuardada = doc.data();
+
         final recetaId = dataGuardada['recetaId'];
 
         if (recetaId == null) {
+          debugPrint(
+            'La receta guardada ${doc.id} no tiene recetaId.',
+          );
           continue;
         }
+
+        debugPrint(
+          'Cargando receta: $recetaId',
+        );
 
         final recetaDoc = await FirebaseFirestore.instance
             .collection('recetas')
             .doc(recetaId)
             .get();
 
-        if (recetaDoc.exists) {
-          final data = recetaDoc.data()!;
-
-          recetas.add({
-            // ID de la receta
-            'id': recetaDoc.id,
-
-            // ID del documento en recetas_guardadas
-            'guardadaId': doc.id,
-
-            'name': data['nombre'] ?? 'Receta sin nombre',
-
-            'description': data['descripcion'] ?? '',
-
-            'ingredients': List<String>.from(
-              data['ingredients'] ?? [],
-            ),
-
-            'instructions': List<String>.from(
-              data['preparation'] ?? [],
-            ),
-          });
+        if (!recetaDoc.exists) {
+          debugPrint(
+            'La receta $recetaId ya no existe en Firestore.',
+          );
+          continue;
         }
+
+        final data = recetaDoc.data()!;
+
+        // ========================================================
+        // PREPARACIÓN
+        // ========================================================
+
+        final preparation = List<String>.from(
+          data['preparation'] ?? [],
+        );
+
+        // ========================================================
+        // INGREDIENTES
+        // ========================================================
+
+        final ingredients = List<String>.from(
+          data['ingredients'] ?? [],
+        );
+
+        // ========================================================
+        // CONSERVAR TODOS LOS DATOS ORIGINALES
+        // ========================================================
+
+        recetas.add({
+          ...data,
+
+          // ======================================================
+          // IDS
+          // ======================================================
+
+          'id': recetaDoc.id,
+          'recetaId': recetaDoc.id,
+          'guardadaId': doc.id,
+
+          // ======================================================
+          // CAMPOS USADOS POR RecipeScreen
+          // ======================================================
+
+          'name': data['nombre'] ?? 'Receta sin nombre',
+
+          'description': data['descripcion'] ?? '',
+
+          'ingredients': ingredients,
+
+          // RecipeScreen y StepByStepScreen trabajan con String.
+          'instructions': preparation.join('\n'),
+        });
+
+        debugPrint(
+          'Receta cargada correctamente: '
+          '${data['nombre'] ?? 'Sin nombre'}',
+        );
       }
 
       if (mounted) {
@@ -98,6 +142,17 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
     } catch (e) {
       debugPrint(
         'ERROR AL CARGAR RECETAS FAVORITAS: $e',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '❌ No se pudieron cargar las recetas: $e',
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -163,16 +218,24 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
       // ACTUALIZAR CONTADOR DEL USUARIO
       // ========================================================
 
-      await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .update({
-        'recetasGuardadas': FieldValue.increment(-1),
-      });
+      try {
+        await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .update({
+          'recetasGuardadas': FieldValue.increment(-1),
+        });
 
-      debugPrint(
-        'Contador recetasGuardadas actualizado.',
-      );
+        debugPrint(
+          'Contador recetasGuardadas actualizado.',
+        );
+      } catch (e) {
+        // Si el campo no existe o hay algún problema con el
+        // contador, no impedimos que la receta sea eliminada.
+        debugPrint(
+          'No se pudo actualizar recetasGuardadas: $e',
+        );
+      }
 
       // ========================================================
       // ACTUALIZAR LISTA VISUAL
@@ -231,6 +294,41 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
   }
 
   // ============================================================
+  // ABRIR RECETA
+  // ============================================================
+
+  void _openRecipe(Map<String, dynamic> recipe) {
+    final ingredients = List<String>.from(
+      recipe['ingredients'] ?? [],
+    );
+
+    final instructions = recipe['instructions'] is String
+        ? recipe['instructions'] as String
+        : List<String>.from(
+            recipe['instructions'] ?? [],
+          ).join('\n');
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeScreen(
+          recipeName: recipe['name'] ?? 'Receta sin nombre',
+          ingredients: ingredients,
+          instructions: instructions,
+
+          // Pasamos la receta completa para conservar todos
+          // los datos necesarios para Modo Cocinar y publicar.
+          recipe: {
+            ...recipe,
+            'ingredients': ingredients,
+            'instructions': instructions,
+          },
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
   // INTERFAZ
   // ============================================================
 
@@ -256,7 +354,9 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
           },
         ),
       ),
+
       backgroundColor: const Color(0xFFFFF8F0),
+
       body: savedRecipes.isEmpty
           ? const Center(
               child: Column(
@@ -267,7 +367,9 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
                     size: 80,
                     color: Colors.grey,
                   ),
+
                   SizedBox(height: 16),
+
                   Text(
                     'No tienes recetas guardadas',
                     style: TextStyle(
@@ -275,7 +377,9 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
                       color: Colors.grey,
                     ),
                   ),
+
                   SizedBox(height: 8),
+
                   Text(
                     'Ve al chat y guarda una receta',
                     style: TextStyle(
@@ -288,86 +392,131 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
+
               itemCount: savedRecipes.length,
+
               itemBuilder: (context, index) {
                 final recipe = savedRecipes[index];
 
+                final ingredients = List<String>.from(
+                  recipe['ingredients'] ?? [],
+                );
+
                 return Card(
                   elevation: 4,
+
                   margin: const EdgeInsets.only(
                     bottom: 12,
                   ),
+
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+
                   child: ListTile(
+                    // ==================================================
+                    // ICONO
+                    // ==================================================
+
                     leading: const Icon(
                       Icons.restaurant,
                       color: Color(0xFFE9783F),
                     ),
 
+                    // ==================================================
+                    // NOMBRE
+                    // ==================================================
+
                     title: Text(
-                      recipe['name'],
+                      recipe['name'] ?? 'Receta sin nombre',
+
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
 
+                    // ==================================================
+                    // INGREDIENTES
+                    // ==================================================
+
                     subtitle: Text(
-                      '${(recipe['ingredients'] as List).length} ingredientes',
+                      '${ingredients.length} ingredientes',
                     ),
+
+                    // ==================================================
+                    // ACCIONES
+                    // ==================================================
 
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
+
                       children: [
-                        // ==================================================
+                        // ==============================================
                         // COMPARTIR
-                        // ==================================================
+                        // ==============================================
 
                         IconButton(
                           icon: const Icon(
                             Icons.share_outlined,
                             color: Color(0xFFE9783F),
                           ),
-                          onPressed: () =>
-                              _shareRecipe(recipe),
+
+                          onPressed: () {
+                            _shareRecipe(recipe);
+                          },
                         ),
 
-                        // ==================================================
+                        // ==============================================
                         // ELIMINAR
-                        // ==================================================
+                        // ==============================================
 
                         IconButton(
                           icon: const Icon(
                             Icons.delete_outline,
                             color: Colors.red,
                           ),
+
                           onPressed: () {
                             showDialog(
                               context: context,
+
                               builder: (_) => AlertDialog(
                                 title: const Text(
                                   'Eliminar receta',
                                 ),
+
                                 content: const Text(
                                   '¿Quieres eliminar esta receta de tus favoritos?',
                                 ),
+
                                 actions: [
+                                  // ==================================
+                                  // CANCELAR
+                                  // ==================================
+
                                   TextButton(
                                     child: const Text(
                                       'Cancelar',
                                     ),
+
                                     onPressed: () {
                                       Navigator.pop(context);
                                     },
                                   ),
+
+                                  // ==================================
+                                  // ELIMINAR
+                                  // ==================================
+
                                   TextButton(
                                     style: TextButton.styleFrom(
                                       foregroundColor: Colors.red,
                                     ),
+
                                     child: const Text(
                                       'Eliminar',
                                     ),
+
                                     onPressed: () {
                                       Navigator.pop(context);
 
@@ -382,27 +531,12 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
                       ],
                     ),
 
-                    // ======================================================
+                    // ==================================================
                     // ABRIR RECETA
-                    // ======================================================
+                    // ==================================================
 
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RecipeScreen(
-                            recipeName: recipe['name'],
-                            ingredients: List<String>.from(
-                              recipe['ingredients'],
-                            ),
-                            instructions: recipe['instructions'],
-
-                            // Pasamos la receta completa
-                            recipe: recipe,
-
-                          ),
-                        ),
-                      );
+                      _openRecipe(recipe);
                     },
                   ),
                 );

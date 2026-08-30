@@ -390,8 +390,12 @@ final sanitized = response.replaceAll('*', '');
                 vertical: 10,
               ),
               decoration: BoxDecoration(
-                color: const Color(0xFFE9783F),
+                color: const Color(0xFF2C3E50),
                 borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: const Color(0xFF1A252F),
+                  width: 2,
+                ),
               ),
               child: Text(
                 steps.isEmpty
@@ -423,6 +427,10 @@ final sanitized = response.replaceAll('*', '');
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFF8D7B68),
+                      width: 2.5,
+                    ),
                     boxShadow: const [
                       BoxShadow(
                         color: Colors.black12,
@@ -454,10 +462,25 @@ final sanitized = response.replaceAll('*', '');
                             data: _ameliaMessage.isEmpty
                                 ? '¡Vamos a cocinar juntos! 👩‍🍳'
                                 : _ameliaMessage,
-                            styleSheet: MarkdownStyleSheet(
+                            styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
                               p: const TextStyle(
-                                fontSize: 17,
-                                height: 1.5,
+                                fontSize: 16.5,
+                                height: 1.6,
+                                color: Color(0xFF2C3E50),
+                              ),
+                              strong: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFC95D2E),
+                              ),
+                              h3: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFE9783F),
+                                height: 1.8,
+                              ),
+                              listBullet: const TextStyle(
+                                fontSize: 16,
+                                color: Color(0xFFE9783F),
                               ),
                             ),
                             selectable: true,
@@ -482,6 +505,10 @@ final sanitized = response.replaceAll('*', '');
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: const Color(0xFFD5D8DC),
+                        width: 1.5,
+                      ),
                       boxShadow: const [
                         BoxShadow(
                           color: Colors.black12,

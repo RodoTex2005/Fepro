@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 import 'saved_recipes_screen.dart';
+import 'recipe_screen.dart';
 import 'frames_screen.dart';
 import 'forum_screen.dart';
 import 'step_by_step_screen.dart';
@@ -36,7 +37,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'id': 'classic',
       'name': 'Clásico',
       'icon': Icons.circle,
-      'color': Colors.grey,
+      'color': const Color(0xFF7F8C8D),
       'requirement': 'Sin requisitos',
       'unlocked': true,
       'gradient': null,
@@ -45,50 +46,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'id': 'beginner',
       'name': 'Principiante',
       'icon': Icons.auto_awesome,
-      'color': const Color(0xFFE9783F),
+      'color': const Color(0xFF1ABC9C),
       'requirement': 'Publica tu primera receta',
       'unlocked': false,
-      'gradient': null,
+      'gradient': const LinearGradient(
+        colors: [
+          Color(0xFF1ABC9C),
+          Color(0xFF16A085),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
     },
     {
       'id': 'star',
       'name': 'Receta Estrella',
       'icon': Icons.star,
-      'color': const Color(0xFFFFD700),
+      'color': const Color(0xFF3498DB),
       'requirement': '+50 likes en una receta',
       'unlocked': false,
-      'gradient': null,
+      'gradient': const LinearGradient(
+        colors: [
+          Color(0xFF3498DB),
+          Color(0xFF2980B9),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
     },
     {
       'id': 'trending',
       'name': 'Tendencia',
       'icon': Icons.local_fire_department,
-      'color': const Color(0xFFFF6B35),
+      'color': const Color(0xFFE74C3C),
       'requirement': 'Receta más likeada de la semana',
       'unlocked': false,
-      'gradient': null,
+      'gradient': const LinearGradient(
+        colors: [
+          Color(0xFFE74C3C),
+          Color(0xFFC0392B),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
     },
     {
       'id': 'master',
       'name': 'Maestro Cocinero',
       'icon': Icons.workspace_premium,
-      'color': const Color(0xFF9B59B6),
+      'color': const Color(0xFF8E44AD),
       'requirement': '5 recetas con +30 likes',
       'unlocked': false,
-      'gradient': null,
+      'gradient': const LinearGradient(
+        colors: [
+          Color(0xFF8E44AD),
+          Color(0xFF6C3483),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
     },
     {
       'id': 'champion',
       'name': 'Campeón',
       'icon': Icons.emoji_events,
-      'color': const Color(0xFFFFD700),
+      'color': const Color(0xFF2C3E50),
       'requirement': '100 recetas guardadas',
       'unlocked': false,
       'gradient': const LinearGradient(
         colors: [
           Color(0xFFFFD700),
-          Color(0xFFFF6B35),
+          Color(0xFF8E44AD),
+          Color(0xFF2C3E50),
         ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
     },
   ];
@@ -343,6 +375,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final frame =
         availableFrames.firstWhere(
       (f) => f['id'] == selectedFrame,
+      orElse: () => availableFrames.first,
     );
 
     if (frame['gradient'] != null) {
@@ -455,15 +488,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                     backgroundImage:
                         userData?['fotoPerfil'] != null &&
-                                userData!['fotoPerfil'].toString().isNotEmpty
+                                userData!['fotoPerfil']
+                                    .toString()
+                                    .isNotEmpty
                             ? NetworkImage(
-                                userData!['fotoPerfil'].toString(),
+                                userData!['fotoPerfil']
+                                    .toString(),
                               )
                             : null,
 
                     child:
                         userData?['fotoPerfil'] == null ||
-                                userData!['fotoPerfil'].toString().isEmpty
+                                userData!['fotoPerfil']
+                                    .toString()
+                                    .isEmpty
                             ? const Icon(
                                 Icons.person,
                                 size: 50,
@@ -601,6 +639,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               );
 
+              await _loadSelectedFrame();
+              await _loadBadges();
               _cargarEstadisticas();
             },
           ),
@@ -826,15 +866,6 @@ class AmeliaHistoryScreen
       return const Stream.empty();
     }
 
-    // IMPORTANTE:
-    // Aquí NO usamos publicadaEnForo.
-    //
-    // Por lo tanto:
-    // - recetas publicadas -> aparecen
-    // - recetas no publicadas -> aparecen
-    //
-    // Solamente filtramos por el UID del usuario.
-
     return FirebaseFirestore.instance
         .collection('recetas')
         .where(
@@ -914,13 +945,46 @@ class AmeliaHistoryScreen
     BuildContext context,
     Map<String, dynamic> receta,
   ) {
+    final publicada =
+        receta['publicadaEnForo'] == true;
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            RecipeDetailScreen(
-          receta: receta,
-          onLike: () {},
+        builder: (_) => RecipeScreen(
+          recipeName:
+              receta['titulo']?.toString() ??
+                  'Receta sin nombre',
+
+          ingredients:
+              receta['ingredientes'] is List
+                  ? List<String>.from(
+                      receta['ingredientes'],
+                    )
+                  : <String>[],
+
+          instructions:
+              receta['preparacion'] is List
+                  ? List<String>.from(
+                      receta['preparacion'],
+                    ).join('\n\n')
+                  : receta['preparacion']
+                          ?.toString() ??
+                      '',
+
+          recipe: {
+            ...receta,
+
+            'publicadaEnForo': publicada,
+
+            'recetaId':
+                receta['recetaId'] ??
+                    receta['id'],
+
+            if (receta['publicacionId'] != null)
+              'publicacionId':
+                  receta['publicacionId'],
+          },
         ),
       ),
     );
@@ -1116,6 +1180,15 @@ class AmeliaHistoryScreen
                   documento.data();
 
               // ==================================================
+              // FOTO FINAL DEL PLATILLO
+              // ==================================================
+
+              final fotoPlatilloUrl =
+                  datos['fotoPlatilloUrl']
+                          ?.toString() ??
+                      '';
+
+              // ==================================================
               // CONVERTIR RECETA
               // ==================================================
 
@@ -1130,6 +1203,12 @@ class AmeliaHistoryScreen
                 'uid':
                     datos['uid'] ??
                         '',
+
+                'publicacionId':
+                    datos['publicacionId'],
+
+                'fotoPlatilloUrl':
+                    fotoPlatilloUrl,
 
                 'titulo':
                     datos['nombre'] ??
@@ -1212,6 +1291,10 @@ class AmeliaHistoryScreen
                 'comentarios':
                     datos['comentarios'] ??
                         0,
+
+                'publicadaEnForo':
+                    datos['publicadaEnForo'] ==
+                        true,
               };
 
               final publicada =
@@ -1411,35 +1494,139 @@ class AmeliaHistoryScreen
                       ),
 
                       // ==================================================
-                      // IMAGEN / ESPACIO DE RECETA
+                      // FOTO FINAL DEL PLATILLO
                       // ==================================================
 
-                      Container(
+                      SizedBox(
+                        width: double.infinity,
                         height: 150,
 
-                        decoration:
-                            const BoxDecoration(
-                          gradient:
-                              LinearGradient(
-                            colors: [
-                              Color(
-                                0xFFE9783F,
-                              ),
-                              Color(
-                                0xFFC95D2E,
-                              ),
-                            ],
-                          ),
-                        ),
+                        child:
+                            fotoPlatilloUrl.isNotEmpty
+                                ? Image.network(
+                                    fotoPlatilloUrl,
 
-                        child: const Center(
-                          child: Icon(
-                            Icons.restaurant,
-                            size: 60,
-                            color:
-                                Colors.white70,
-                          ),
-                        ),
+                                    width:
+                                        double.infinity,
+
+                                    height: 150,
+
+                                    fit:
+                                        BoxFit.cover,
+
+                                    loadingBuilder:
+                                        (
+                                      context,
+                                      child,
+                                      loadingProgress,
+                                    ) {
+                                      if (loadingProgress ==
+                                          null) {
+                                        return child;
+                                      }
+
+                                      return Container(
+                                        width:
+                                            double.infinity,
+                                        height:
+                                            150,
+                                        decoration:
+                                            const BoxDecoration(
+                                          gradient:
+                                              LinearGradient(
+                                            colors: [
+                                              Color(
+                                                0xFFE9783F,
+                                              ),
+                                              Color(
+                                                0xFFC95D2E,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        child:
+                                            const Center(
+                                          child:
+                                              CircularProgressIndicator(
+                                            color:
+                                                Colors.white,
+                                          ),
+                                        ),
+                                      );
+                                    },
+
+                                    errorBuilder:
+                                        (
+                                      context,
+                                      error,
+                                      stackTrace,
+                                    ) {
+                                      return Container(
+                                        width:
+                                            double.infinity,
+                                        height:
+                                            150,
+                                        decoration:
+                                            const BoxDecoration(
+                                          gradient:
+                                              LinearGradient(
+                                            colors: [
+                                              Color(
+                                                0xFFE9783F,
+                                              ),
+                                              Color(
+                                                0xFFC95D2E,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        child:
+                                            const Center(
+                                          child:
+                                              Icon(
+                                            Icons
+                                                .broken_image_outlined,
+                                            size:
+                                                60,
+                                            color:
+                                                Colors.white70,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  )
+                                : Container(
+                                    width:
+                                        double.infinity,
+                                    height:
+                                        150,
+                                    decoration:
+                                        const BoxDecoration(
+                                      gradient:
+                                          LinearGradient(
+                                        colors: [
+                                          Color(
+                                            0xFFE9783F,
+                                          ),
+                                          Color(
+                                            0xFFC95D2E,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    child:
+                                        const Center(
+                                      child:
+                                          Icon(
+                                        Icons
+                                            .restaurant,
+                                        size:
+                                            60,
+                                        color:
+                                            Colors.white70,
+                                      ),
+                                    ),
+                                  ),
                       ),
 
                       // ==================================================

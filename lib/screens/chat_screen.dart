@@ -107,7 +107,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // ENVIAR MENSAJE A DEEPSEEK
   // ============================================================
 
-  Future<void> _sendMessage({String? customText}) async {
+  Future<void> _sendMessage({String? customText, bool showInUI = true}) async {
     final text = (customText ?? _controller.text).trim();
 
     if (text.isEmpty || _isLoading) return;
@@ -117,6 +117,7 @@ class _ChatScreenState extends State<ChatScreen> {
         'text': text,
         'isUser': true,
         'time': _getCurrentTime(),
+        if (!showInUI) 'hidden': true,
       });
 
       _isLoading = true;
@@ -785,7 +786,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _isLoading = true;
 
         _loadingText =
-            'Amelia y Gemini están reconociendo '
+            'Amelia está reconociendo '
             'los ingredientes...';
       });
 
@@ -808,7 +809,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 .join('\n');
 
         final ameliaResponse =
-            '¡He analizado tu foto con Gemini! 🔍✨\n\n'
+            '¡He analizado tu foto! 🔍✨\n\n'
             'Detecté estos ingredientes:\n'
             '$ingredientsList\n\n'
             '${result.mensaje} '
@@ -926,6 +927,7 @@ class _ChatScreenState extends State<ChatScreen> {
       customText:
           'Sí, los ingredientes detectados son correctos. '
           'Por favor, prepárame una receta deliciosa con ellos.',
+      showInUI: false,
     );
   }
 
@@ -1039,6 +1041,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 final msg =
                     messages[msgIndex];
+
+                if (msg['hidden'] == true) {
+                  return const SizedBox.shrink();
+                }
 
                 final isRecipe =
                     msg['isRecipe'] ??
