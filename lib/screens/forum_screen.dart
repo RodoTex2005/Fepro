@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'step_by_step_screen.dart';
+import '../utils/share_utils.dart'; // Importación para compartir
 
 class ForumScreen extends StatefulWidget {
   const ForumScreen({super.key});
@@ -16,8 +17,7 @@ class ForumScreen extends StatefulWidget {
 }
 
 class _ForumScreenState extends State<ForumScreen> {
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // ============================================================
   // OBTENER RECETAS PUBLICADAS EN EL FORO
@@ -26,14 +26,8 @@ class _ForumScreenState extends State<ForumScreen> {
   Stream<QuerySnapshot<Map<String, dynamic>>> _getRecetas() {
     return _firestore
         .collection('recetas')
-        .where(
-          'publicadaEnForo',
-          isEqualTo: true,
-        )
-        .orderBy(
-          'fechaPublicacionForo',
-          descending: true,
-        )
+        .where('publicadaEnForo', isEqualTo: true)
+        .orderBy('fechaPublicacionForo', descending: true)
         .snapshots();
   }
 
@@ -44,10 +38,7 @@ class _ForumScreenState extends State<ForumScreen> {
   Future<Map<String, String>> _getDatosUsuario(String uid) async {
     try {
       if (uid.isEmpty) {
-        return {
-          'nombre': 'Usuario',
-          'fotoPerfil': '',
-        };
+        return {'nombre': 'Usuario', 'fotoPerfil': ''};
       }
 
       final documento = await _firestore
@@ -57,30 +48,18 @@ class _ForumScreenState extends State<ForumScreen> {
 
       if (documento.exists) {
         final datos = documento.data();
-
         return {
           'nombre': datos?['usuario']?.toString() ??
               datos?['nombre']?.toString() ??
               'Usuario',
-
-          'fotoPerfil':
-              datos?['fotoPerfil']?.toString() ?? '',
+          'fotoPerfil': datos?['fotoPerfil']?.toString() ?? '',
         };
       }
 
-      return {
-        'nombre': 'Usuario',
-        'fotoPerfil': '',
-      };
+      return {'nombre': 'Usuario', 'fotoPerfil': ''};
     } catch (e) {
-      debugPrint(
-        'ERROR AL OBTENER DATOS DEL USUARIO: $e',
-      );
-
-      return {
-        'nombre': 'Usuario',
-        'fotoPerfil': '',
-      };
+      debugPrint('ERROR AL OBTENER DATOS DEL USUARIO: $e');
+      return {'nombre': 'Usuario', 'fotoPerfil': ''};
     }
   }
 
@@ -90,7 +69,6 @@ class _ForumScreenState extends State<ForumScreen> {
 
   Future<String> _getNombreUsuario(String uid) async {
     final datos = await _getDatosUsuario(uid);
-
     return datos['nombre'] ?? 'Usuario';
   }
 
@@ -100,7 +78,6 @@ class _ForumScreenState extends State<ForumScreen> {
 
   Future<String> _getFotoPerfilUsuario(String uid) async {
     final datos = await _getDatosUsuario(uid);
-
     return datos['fotoPerfil'] ?? '';
   }
 
@@ -109,36 +86,22 @@ class _ForumScreenState extends State<ForumScreen> {
   // ============================================================
 
   String _formatFecha(dynamic fecha) {
-    if (fecha == null) {
-      return 'Fecha desconocida';
-    }
+    if (fecha == null) return 'Fecha desconocida';
 
     DateTime? fechaDateTime;
-
     if (fecha is Timestamp) {
       fechaDateTime = fecha.toDate();
     } else if (fecha is DateTime) {
       fechaDateTime = fecha;
     }
 
-    if (fechaDateTime == null) {
-      return 'Fecha desconocida';
-    }
+    if (fechaDateTime == null) return 'Fecha desconocida';
 
-    final dia =
-        fechaDateTime.day.toString().padLeft(2, '0');
-
-    final mes =
-        fechaDateTime.month.toString().padLeft(2, '0');
-
-    final anio =
-        fechaDateTime.year;
-
-    final hora =
-        fechaDateTime.hour.toString().padLeft(2, '0');
-
-    final minuto =
-        fechaDateTime.minute.toString().padLeft(2, '0');
+    final dia = fechaDateTime.day.toString().padLeft(2, '0');
+    final mes = fechaDateTime.month.toString().padLeft(2, '0');
+    final anio = fechaDateTime.year;
+    final hora = fechaDateTime.hour.toString().padLeft(2, '0');
+    final minuto = fechaDateTime.minute.toString().padLeft(2, '0');
 
     return '$dia/$mes/$anio · $hora:$minuto';
   }
@@ -147,9 +110,7 @@ class _ForumScreenState extends State<ForumScreen> {
   // ABRIR DETALLE
   // ============================================================
 
-  void _openRecipeDetail(
-    Map<String, dynamic> receta,
-  ) {
+  void _openRecipeDetail(Map<String, dynamic> receta) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -168,16 +129,11 @@ class _ForumScreenState extends State<ForumScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFFFF8F0),
-
-      body: StreamBuilder<
-          QuerySnapshot<Map<String, dynamic>>>(
+      backgroundColor: const Color(0xFFFFF8F0),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _getRecetas(),
-
         builder: (context, snapshot) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(
                 color: Color(0xFFE9783F),
@@ -188,64 +144,38 @@ class _ForumScreenState extends State<ForumScreen> {
           if (snapshot.hasError) {
             return Center(
               child: Padding(
-                padding:
-                    const EdgeInsets.all(20),
-
+                padding: const EdgeInsets.all(20),
                 child: Text(
-                  'Error al cargar las recetas:\n'
-                  '${snapshot.error}',
-
-                  textAlign:
-                      TextAlign.center,
-
-                  style:
-                      const TextStyle(
-                    color: Colors.red,
-                  ),
+                  'Error al cargar las recetas:\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
                 ),
               ),
             );
           }
 
-          final documentos =
-              snapshot.data?.docs ?? [];
+          final documentos = snapshot.data?.docs ?? [];
 
           if (documentos.isEmpty) {
             return const Center(
               child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
                     Icons.restaurant_menu,
                     size: 70,
-                    color:
-                        Color(0xFFE9783F),
+                    color: Color(0xFFE9783F),
                   ),
-
                   SizedBox(height: 16),
-
                   Text(
                     'Todavía no hay recetas publicadas.',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                   ),
-
                   SizedBox(height: 8),
-
                   Text(
-                    'Genera una receta con Amelia '
-                    'y publícala en el foro.',
-                    textAlign:
-                        TextAlign.center,
-
-                    style: TextStyle(
-                      color: Colors.grey,
-                    ),
+                    'Genera una receta con Amelia y publícala en el foro.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
                   ),
                 ],
               ),
@@ -253,264 +183,116 @@ class _ForumScreenState extends State<ForumScreen> {
           }
 
           return ListView.builder(
-            padding:
-                const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
+            itemCount: documentos.length,
+            itemBuilder: (context, index) {
+              final documento = documentos[index];
+              final datos = documento.data();
 
-            itemCount:
-                documentos.length,
+              final uid = datos['uid']?.toString() ?? '';
+              final fecha = _formatFecha(datos['fechaPublicacionForo']);
 
-            itemBuilder:
-                (context, index) {
-              final documento =
-                  documentos[index];
-
-              final datos =
-                  documento.data();
-
-              final uid =
-                  datos['uid']?.toString() ??
-                      '';
-
-              final fecha =
-                  _formatFecha(
-                datos['fechaPublicacionForo'],
-              );
-
-              final receta =
-                  <String, dynamic>{
+              final receta = <String, dynamic>{
                 'id': documento.id,
                 'recetaId': documento.id,
-
                 'uid': uid,
-
-                'titulo':
-                    datos['nombre'] ??
-                        'Receta sin nombre',
-
-                'descripcion':
-                    datos['descripcion'] ??
-                        '',
-
-                'ingredientes':
-                    datos['ingredients']
-                            is List
-                        ? List<String>.from(
-                            datos['ingredients'],
-                          )
-                        : <String>[],
-
-                'preparacion':
-                    datos['preparation']
-                            is List
-                        ? List<String>.from(
-                            datos['preparation'],
-                          )
-                        : <String>[],
-
-                'servings':
-                    datos['servings'],
-
-                'time':
-                    datos['time'] ?? '',
-
-                'difficulty':
-                    datos['difficulty'] ??
-                        '',
-
-                'advice':
-                    datos['advice'] ?? '',
-
-                'finalMessage':
-                    datos['finalMessage'] ??
-                        '',
-
-                'autor':
-                    'Usuario',
-
-                'fecha':
-                    fecha,
-
-                'likes':
-                    datos['likes'] ?? 0,
-
-                'liked':
-                    false,
-
-                'comentarios':
-                    datos['comentarios'] ?? 0,
-
-                // FOTO FINAL DEL PLATILLO
-                'fotoPlatilloUrl':
-                    datos['fotoPlatilloUrl'] ?? '',
+                'titulo': datos['nombre'] ?? 'Receta sin nombre',
+                'descripcion': datos['descripcion'] ?? '',
+                'ingredientes': datos['ingredients'] is List
+                    ? List<String>.from(datos['ingredients'])
+                    : <String>[],
+                'preparacion': datos['preparation'] is List
+                    ? List<String>.from(datos['preparation'])
+                    : <String>[],
+                'servings': datos['servings'],
+                'time': datos['time'] ?? '',
+                'difficulty': datos['difficulty'] ?? '',
+                'advice': datos['advice'] ?? '',
+                'finalMessage': datos['finalMessage'] ?? '',
+                'autor': 'Usuario',
+                'fecha': fecha,
+                'likes': datos['likes'] ?? 0,
+                'liked': false,
+                'comentarios': datos['comentarios'] ?? 0,
+                'fotoPlatilloUrl': datos['fotoPlatilloUrl'] ?? '',
               };
 
               return Card(
                 elevation: 4,
-
-                margin:
-                    const EdgeInsets.only(
-                  bottom: 16,
+                margin: const EdgeInsets.only(bottom: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-
-                shape:
-                    RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    16,
-                  ),
-                ),
-
                 child: InkWell(
-                  borderRadius:
-                      BorderRadius.circular(
-                    16,
-                  ),
-
-                  onTap: () =>
-                      _openRecipeDetail(
-                    receta,
-                  ),
-
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => _openRecipeDetail(receta),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // ==================================================
                       // USUARIO
                       // ==================================================
 
                       Padding(
-                        padding:
-                            const EdgeInsets
-                                .all(16),
+                        padding: const EdgeInsets.all(16),
+                        child: FutureBuilder<Map<String, String>>(
+                          future: _getDatosUsuario(uid),
+                          builder: (context, userSnapshot) {
+                            final datosUsuario = userSnapshot.data ?? {
+                              'nombre': 'Usuario',
+                              'fotoPerfil': '',
+                            };
 
-                        child:
-                            FutureBuilder<
-                                Map<String, String>>(
-                          future:
-                              _getDatosUsuario(
-                            uid,
-                          ),
+                            final nombre = datosUsuario['nombre'] ?? 'Usuario';
+                            final fotoPerfil = datosUsuario['fotoPerfil'] ?? '';
 
-                          builder: (
-                            context,
-                            userSnapshot,
-                          ) {
-                            final datosUsuario =
-                                userSnapshot.data ??
-                                    {
-                                      'nombre':
-                                          'Usuario',
-                                      'fotoPerfil':
-                                          '',
-                                    };
-
-                            final nombre =
-                                datosUsuario[
-                                        'nombre'] ??
-                                    'Usuario';
-
-                            final fotoPerfil =
-                                datosUsuario[
-                                        'fotoPerfil'] ??
-                                    '';
-
-                            receta['autor'] =
-                                nombre;
+                            receta['autor'] = nombre;
 
                             return Row(
                               children: [
-                                // ==================================================
-                                // FOTO DE PERFIL
-                                // ==================================================
-
                                 CircleAvatar(
                                   radius: 22,
-
-                                  backgroundColor:
-                                      const Color(
-                                    0xFFE9783F,
-                                  ),
-
-                                  backgroundImage:
-                                      fotoPerfil
-                                              .isNotEmpty
-                                          ? NetworkImage(
-                                              fotoPerfil,
-                                            )
-                                          : null,
-
-                                  onBackgroundImageError:
-                                      fotoPerfil
-                                              .isNotEmpty
-                                          ? (
-                                              exception,
-                                              stackTrace,
-                                            ) {
-                                              debugPrint(
-                                                'ERROR AL CARGAR FOTO DE PERFIL: $exception',
-                                              );
-                                            }
-                                          : null,
-
-                                  child:
-                                      fotoPerfil
-                                              .isEmpty
-                                          ? Text(
-                                              nombre
-                                                      .isNotEmpty
-                                                  ? nombre[0]
-                                                      .toUpperCase()
-                                                  : 'U',
-
-                                              style:
-                                                  const TextStyle(
-                                                color:
-                                                    Colors.white,
-                                                fontWeight:
-                                                    FontWeight.bold,
-                                                fontSize:
-                                                    17,
-                                              ),
-                                            )
-                                          : null,
+                                  backgroundColor: const Color(0xFFE9783F),
+                                  backgroundImage: fotoPerfil.isNotEmpty
+                                      ? NetworkImage(fotoPerfil)
+                                      : null,
+                                  onBackgroundImageError: fotoPerfil.isNotEmpty
+                                      ? (exception, stackTrace) {
+                                          debugPrint(
+                                            'ERROR AL CARGAR FOTO DE PERFIL: $exception',
+                                          );
+                                        }
+                                      : null,
+                                  child: fotoPerfil.isEmpty
+                                      ? Text(
+                                          nombre.isNotEmpty
+                                              ? nombre[0].toUpperCase()
+                                              : 'U',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 17,
+                                          ),
+                                        )
+                                      : null,
                                 ),
-
-                                const SizedBox(
-                                  width: 12,
-                                ),
-
+                                const SizedBox(width: 12),
                                 Expanded(
-                                  child:
-                                      Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment
-                                            .start,
-
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         nombre,
-
-                                        style:
-                                            const TextStyle(
-                                          fontWeight:
-                                              FontWeight.bold,
-                                          fontSize:
-                                              16,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
                                         ),
                                       ),
-
                                       Text(
                                         fecha,
-
-                                        style:
-                                            const TextStyle(
-                                          color:
-                                              Colors.grey,
-                                          fontSize:
-                                              12,
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 12,
                                         ),
                                       ),
                                     ],
@@ -527,127 +309,64 @@ class _ForumScreenState extends State<ForumScreen> {
                       // ==================================================
 
                       ClipRRect(
-                        borderRadius:
-                            const BorderRadius.only(
-                          topLeft:
-                              Radius.circular(0),
-                          topRight:
-                              Radius.circular(0),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(0),
+                          topRight: Radius.circular(0),
                         ),
-
-                        child:
-                            SizedBox(
+                        child: SizedBox(
                           height: 180,
-                          width:
-                              double.infinity,
-
-                          child:
-                              receta[
-                                          'fotoPlatilloUrl']
-                                      .toString()
-                                      .isNotEmpty
-                                  ? Image.network(
-                                      receta[
-                                              'fotoPlatilloUrl']
-                                          .toString(),
-
-                                      width:
-                                          double.infinity,
-
-                                      height:
-                                          180,
-
-                                      fit:
-                                          BoxFit.cover,
-
-                                      loadingBuilder:
-                                          (
-                                        context,
-                                        child,
-                                        loadingProgress,
-                                      ) {
-                                        if (loadingProgress ==
-                                            null) {
-                                          return child;
-                                        }
-
-                                        return const Center(
-                                          child:
-                                              CircularProgressIndicator(
-                                            color:
-                                                Color(
-                                              0xFFE9783F,
-                                            ),
-                                          ),
-                                        );
-                                      },
-
-                                      errorBuilder:
-                                          (
-                                        context,
-                                        error,
-                                        stackTrace,
-                                      ) {
-                                        return Container(
-                                          decoration:
-                                              const BoxDecoration(
-                                            gradient:
-                                                LinearGradient(
-                                              colors: [
-                                                Color(
-                                                  0xFFE9783F,
-                                                ),
-                                                Color(
-                                                  0xFFC95D2E,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-
-                                          child:
-                                              const Center(
-                                            child:
-                                                Icon(
-                                              Icons
-                                                  .broken_image,
-                                              size:
-                                                  60,
-                                              color:
-                                                  Colors.white,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    )
-                                  : Container(
-                                      decoration:
-                                          const BoxDecoration(
-                                        gradient:
-                                            LinearGradient(
+                          width: double.infinity,
+                          child: receta['fotoPlatilloUrl'].toString().isNotEmpty
+                              ? Image.network(
+                                  receta['fotoPlatilloUrl'].toString(),
+                                  width: double.infinity,
+                                  height: 180,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return const Center(
+                                      child: CircularProgressIndicator(
+                                        color: Color(0xFFE9783F),
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      decoration: const BoxDecoration(
+                                        gradient: LinearGradient(
                                           colors: [
-                                            Color(
-                                              0xFFE9783F,
-                                            ),
-                                            Color(
-                                              0xFFC95D2E,
-                                            ),
+                                            Color(0xFFE9783F),
+                                            Color(0xFFC95D2E),
                                           ],
                                         ),
                                       ),
-
-                                      child:
-                                          const Center(
-                                        child:
-                                            Icon(
-                                          Icons
-                                              .restaurant,
-                                          size:
-                                              60,
-                                          color:
-                                              Colors.white,
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.broken_image,
+                                          size: 60,
+                                          color: Colors.white,
                                         ),
                                       ),
+                                    );
+                                  },
+                                )
+                              : Container(
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Color(0xFFE9783F),
+                                        Color(0xFFC95D2E),
+                                      ],
                                     ),
+                                  ),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.restaurant,
+                                      size: 60,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
                         ),
                       ),
 
@@ -656,188 +375,85 @@ class _ForumScreenState extends State<ForumScreen> {
                       // ==================================================
 
                       Padding(
-                        padding:
-                            const EdgeInsets
-                                .all(16),
-
+                        padding: const EdgeInsets.all(16),
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
-
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              receta[
-                                  'titulo'],
-
-                              style:
-                                  const TextStyle(
-                                fontSize:
-                                    18,
-
-                                fontWeight:
-                                    FontWeight
-                                        .bold,
-
-                                color:
-                                    Color(
-                                  0xFFC95D2E,
-                                ),
+                              receta['titulo'],
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFC95D2E),
                               ),
                             ),
-
-                            const SizedBox(
-                              height: 6,
-                            ),
-
-                            if (receta[
-                                    'descripcion']
-                                .toString()
-                                .isNotEmpty)
+                            const SizedBox(height: 6),
+                            if (receta['descripcion'].toString().isNotEmpty)
                               Text(
-                                receta[
-                                    'descripcion'],
-
+                                receta['descripcion'],
                                 maxLines: 3,
-
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis,
-
-                                style:
-                                    const TextStyle(
-                                  color:
-                                      Colors.grey,
-
-                                  fontSize:
-                                      14,
-
-                                  height:
-                                      1.4,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                  height: 1.4,
                                 ),
                               ),
-
-                            const SizedBox(
-                              height: 12,
-                            ),
-
+                            const SizedBox(height: 12),
                             Row(
                               children: [
                                 Container(
-                                  padding:
-                                      const EdgeInsets
-                                          .symmetric(
-                                    horizontal:
-                                        12,
-                                    vertical:
-                                        6,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
                                   ),
-
-                                  decoration:
-                                      BoxDecoration(
-                                    color: Colors
-                                        .grey
-                                        .withOpacity(
-                                      0.1,
-                                    ),
-
-                                    borderRadius:
-                                        BorderRadius
-                                            .circular(
-                                      20,
-                                    ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
-
                                   child: Row(
                                     children: [
                                       const Icon(
-                                        Icons
-                                            .favorite_border,
-                                        color:
-                                            Colors.grey,
-                                        size:
-                                            20,
+                                        Icons.favorite_border,
+                                        color: Colors.grey,
+                                        size: 20,
                                       ),
-
-                                      const SizedBox(
-                                        width: 4,
-                                      ),
-
+                                      const SizedBox(width: 4),
                                       Text(
                                         '${receta['likes']}',
-
-                                        style:
-                                            const TextStyle(
-                                          color:
-                                              Colors.grey,
-                                          fontWeight:
-                                              FontWeight.bold,
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-
-                                const SizedBox(
-                                  width: 16,
-                                ),
-
+                                const SizedBox(width: 16),
                                 Row(
                                   children: [
                                     const Icon(
-                                      Icons
-                                          .chat_bubble_outline,
-
-                                      size:
-                                          20,
-
-                                      color:
-                                          Colors.grey,
+                                      Icons.chat_bubble_outline,
+                                      size: 20,
+                                      color: Colors.grey,
                                     ),
-
-                                    const SizedBox(
-                                      width: 4,
-                                    ),
-
+                                    const SizedBox(width: 4),
                                     Text(
                                       '${receta['comentarios']}',
-
-                                      style:
-                                          const TextStyle(
-                                        color:
-                                            Colors.grey,
+                                      style: const TextStyle(
+                                        color: Colors.grey,
                                       ),
                                     ),
                                   ],
                                 ),
-
                                 const Spacer(),
-
+                                // ================================================
+                                // BOTÓN COMPARTIR (MODIFICADO)
+                                // ================================================
                                 IconButton(
-                                  icon:
-                                      const Icon(
-                                    Icons
-                                        .share_outlined,
-                                  ),
-
-                                  onPressed:
-                                      () {
-                                    ScaffoldMessenger
-                                            .of(
-                                      context,
-                                    )
-                                        .showSnackBar(
-                                      const SnackBar(
-                                        content:
-                                            Text(
-                                          '📤 Receta compartida',
-                                        ),
-                                        backgroundColor:
-                                            Color(
-                                          0xFFE9783F,
-                                        ),
-                                      ),
-                                    );
+                                  icon: const Icon(Icons.share_outlined),
+                                  onPressed: () {
+                                    ShareUtils.shareRecipe(receta);
                                   },
                                 ),
                               ],
@@ -861,10 +477,8 @@ class _ForumScreenState extends State<ForumScreen> {
 // PANTALLA DE DETALLE DE RECETA
 // ================================================================
 
-class RecipeDetailScreen
-    extends StatefulWidget {
+class RecipeDetailScreen extends StatefulWidget {
   final Map<String, dynamic> receta;
-
   final VoidCallback onLike;
 
   const RecipeDetailScreen({
@@ -874,40 +488,24 @@ class RecipeDetailScreen
   });
 
   @override
-  State<RecipeDetailScreen> createState() =>
-      _RecipeDetailScreenState();
+  State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
 }
 
-class _RecipeDetailScreenState
-    extends State<RecipeDetailScreen> {
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
-
-  final TextEditingController
-      _commentController =
-      TextEditingController();
-
-  final ImagePicker _imagePicker =
-      ImagePicker();
-
+class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final TextEditingController _commentController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
   bool _enviandoComentario = false;
-
-  // Foto seleccionada para el comentario
   File? _fotoComentario;
 
   // ============================================================
   // OBTENER DATOS DEL USUARIO
   // ============================================================
 
-  Future<Map<String, String>> _getDatosUsuario(
-    String uid,
-  ) async {
+  Future<Map<String, String>> _getDatosUsuario(String uid) async {
     try {
       if (uid.isEmpty) {
-        return {
-          'nombre': 'Usuario',
-          'fotoPerfil': '',
-        };
+        return {'nombre': 'Usuario', 'fotoPerfil': ''};
       }
 
       final documento = await _firestore
@@ -917,30 +515,18 @@ class _RecipeDetailScreenState
 
       if (documento.exists) {
         final datos = documento.data();
-
         return {
           'nombre': datos?['usuario']?.toString() ??
               datos?['nombre']?.toString() ??
               'Usuario',
-
-          'fotoPerfil':
-              datos?['fotoPerfil']?.toString() ?? '',
+          'fotoPerfil': datos?['fotoPerfil']?.toString() ?? '',
         };
       }
 
-      return {
-        'nombre': 'Usuario',
-        'fotoPerfil': '',
-      };
+      return {'nombre': 'Usuario', 'fotoPerfil': ''};
     } catch (e) {
-      debugPrint(
-        'ERROR AL OBTENER DATOS DEL USUARIO: $e',
-      );
-
-      return {
-        'nombre': 'Usuario',
-        'fotoPerfil': '',
-      };
+      debugPrint('ERROR AL OBTENER DATOS DEL USUARIO: $e');
+      return {'nombre': 'Usuario', 'fotoPerfil': ''};
     }
   }
 
@@ -949,36 +535,22 @@ class _RecipeDetailScreenState
   // ============================================================
 
   String _formatFecha(dynamic fecha) {
-    if (fecha == null) {
-      return 'Fecha desconocida';
-    }
+    if (fecha == null) return 'Fecha desconocida';
 
     DateTime? fechaDateTime;
-
     if (fecha is Timestamp) {
       fechaDateTime = fecha.toDate();
     } else if (fecha is DateTime) {
       fechaDateTime = fecha;
     }
 
-    if (fechaDateTime == null) {
-      return 'Fecha desconocida';
-    }
+    if (fechaDateTime == null) return 'Fecha desconocida';
 
-    final dia =
-        fechaDateTime.day.toString().padLeft(2, '0');
-
-    final mes =
-        fechaDateTime.month.toString().padLeft(2, '0');
-
-    final anio =
-        fechaDateTime.year;
-
-    final hora =
-        fechaDateTime.hour.toString().padLeft(2, '0');
-
-    final minuto =
-        fechaDateTime.minute.toString().padLeft(2, '0');
+    final dia = fechaDateTime.day.toString().padLeft(2, '0');
+    final mes = fechaDateTime.month.toString().padLeft(2, '0');
+    final anio = fechaDateTime.year;
+    final hora = fechaDateTime.hour.toString().padLeft(2, '0');
+    final minuto = fechaDateTime.minute.toString().padLeft(2, '0');
 
     return '$dia/$mes/$anio · $hora:$minuto';
   }
@@ -987,11 +559,8 @@ class _RecipeDetailScreenState
   // REFERENCIA A LOS COMENTARIOS
   // ============================================================
 
-  CollectionReference<Map<String, dynamic>>
-      _comentariosRef() {
-    final recetaId =
-        widget.receta['id']?.toString() ?? '';
-
+  CollectionReference<Map<String, dynamic>> _comentariosRef() {
+    final recetaId = widget.receta['id']?.toString() ?? '';
     return _firestore
         .collection('recetas')
         .doc(recetaId)
@@ -1002,13 +571,9 @@ class _RecipeDetailScreenState
   // OBTENER COMENTARIOS
   // ============================================================
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      _getComentarios() {
+  Stream<QuerySnapshot<Map<String, dynamic>>> _getComentarios() {
     return _comentariosRef()
-        .orderBy(
-          'fechaComentario',
-          descending: false,
-        )
+        .orderBy('fechaComentario', descending: false)
         .snapshots();
   }
 
@@ -1053,77 +618,37 @@ class _RecipeDetailScreenState
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape:
-          const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding:
-                const EdgeInsets.all(16),
-
+            padding: const EdgeInsets.all(16),
             child: GridView.builder(
               shrinkWrap: true,
-
-              itemCount:
-                  emojis.length,
-
-              gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
+              itemCount: emojis.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 6,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
               ),
-
-              itemBuilder:
-                  (context, index) {
-                final emoji =
-                    emojis[index];
-
+              itemBuilder: (context, index) {
+                final emoji = emojis[index];
                 return InkWell(
-                  borderRadius:
-                      BorderRadius.circular(
-                    12,
-                  ),
-
+                  borderRadius: BorderRadius.circular(12),
                   onTap: () {
-                    final textoActual =
-                        _commentController
-                            .text;
-
-                    _commentController
-                            .text =
-                        '$textoActual$emoji';
-
-                    _commentController
-                            .selection =
-                        TextSelection
-                            .fromPosition(
-                      TextPosition(
-                        offset:
-                            _commentController
-                                .text
-                                .length,
-                      ),
+                    final textoActual = _commentController.text;
+                    _commentController.text = '$textoActual$emoji';
+                    _commentController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: _commentController.text.length),
                     );
-
-                    Navigator.pop(
-                      context,
-                    );
+                    Navigator.pop(context);
                   },
-
                   child: Center(
                     child: Text(
                       emoji,
-
-                      style:
-                          const TextStyle(
-                        fontSize: 30,
-                      ),
+                      style: const TextStyle(fontSize: 30),
                     ),
                   ),
                 );
@@ -1141,41 +666,22 @@ class _RecipeDetailScreenState
 
   Future<void> _tomarFotoComentario() async {
     try {
-      final XFile? imagen =
-          await _imagePicker.pickImage(
+      final XFile? imagen = await _imagePicker.pickImage(
         source: ImageSource.camera,
         imageQuality: 80,
       );
-
-      if (imagen == null) {
-        return;
-      }
-
-      if (!mounted) {
-        return;
-      }
-
+      if (imagen == null) return;
+      if (!mounted) return;
       setState(() {
-        _fotoComentario =
-            File(imagen.path);
+        _fotoComentario = File(imagen.path);
       });
     } catch (e) {
-      debugPrint(
-        'ERROR AL TOMAR FOTO DEL COMENTARIO: $e',
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      debugPrint('ERROR AL TOMAR FOTO DEL COMENTARIO: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '❌ No se pudo abrir la cámara: $e',
-          ),
-          backgroundColor:
-              Colors.red,
+          content: Text('❌ No se pudo abrir la cámara: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -1195,39 +701,20 @@ class _RecipeDetailScreenState
   // SUBIR FOTO DEL COMENTARIO
   // ============================================================
 
-  Future<String?> _subirFotoComentario(
-    File foto,
-    String comentarioId,
-  ) async {
+  Future<String?> _subirFotoComentario(File foto, String comentarioId) async {
     try {
-      final user =
-          FirebaseAuth.instance.currentUser;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
 
-      if (user == null) {
-        return null;
-      }
-
-      final referencia =
-          FirebaseStorage.instance
-              .ref()
-              .child(
-                'comentarios'
-                '/${widget.receta['id']}'
-                '/${user.uid}'
-                '/$comentarioId.jpg',
-              );
+      final referencia = FirebaseStorage.instance
+          .ref()
+          .child('comentarios/${widget.receta['id']}/${user.uid}/$comentarioId.jpg');
 
       await referencia.putFile(foto);
-
-      final url =
-          await referencia.getDownloadURL();
-
+      final url = await referencia.getDownloadURL();
       return url;
     } catch (e) {
-      debugPrint(
-        'ERROR AL SUBIR FOTO DEL COMENTARIO: $e',
-      );
-
+      debugPrint('ERROR AL SUBIR FOTO DEL COMENTARIO: $e');
       rethrow;
     }
   }
@@ -1239,7 +726,6 @@ class _RecipeDetailScreenState
   @override
   void dispose() {
     _commentController.dispose();
-
     super.dispose();
   }
 
@@ -1249,175 +735,91 @@ class _RecipeDetailScreenState
 
   Future<void> _toggleLike() async {
     try {
-      final user =
-          FirebaseAuth.instance.currentUser;
-
+      final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '⚠️ Debes iniciar sesión para dar like',
-            ),
-            backgroundColor:
-                Color(0xFFF39C12),
+            content: Text('⚠️ Debes iniciar sesión para dar like'),
+            backgroundColor: Color(0xFFF39C12),
           ),
         );
-
         return;
       }
 
-      final recetaId =
-          widget.receta['id']?.toString();
-
-      if (recetaId == null ||
-          recetaId.isEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+      final recetaId = widget.receta['id']?.toString();
+      if (recetaId == null || recetaId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '❌ No se encontró el ID de la receta',
-            ),
-            backgroundColor:
-                Colors.red,
+            content: Text('❌ No se encontró el ID de la receta'),
+            backgroundColor: Colors.red,
           ),
         );
-
         return;
       }
 
-      final autorUid =
-          widget.receta['uid']?.toString();
-
-      if (autorUid == null ||
-          autorUid.isEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+      final autorUid = widget.receta['uid']?.toString();
+      if (autorUid == null || autorUid.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '❌ No se encontró el autor de la receta',
-            ),
-            backgroundColor:
-                Colors.red,
+            content: Text('❌ No se encontró el autor de la receta'),
+            backgroundColor: Colors.red,
           ),
         );
-
         return;
       }
 
-      final recetaRef = _firestore
-          .collection('recetas')
-          .doc(recetaId);
+      final recetaRef = _firestore.collection('recetas').doc(recetaId);
+      final autorRef = _firestore.collection('usuarios').doc(autorUid);
+      final likeRef = recetaRef.collection('likes').doc(user.uid);
 
-      final autorRef = _firestore
-          .collection('usuarios')
-          .doc(autorUid);
-
-      final likeRef = recetaRef
-          .collection('likes')
-          .doc(user.uid);
-
-      final likeSnapshot =
-          await likeRef.get();
+      final likeSnapshot = await likeRef.get();
 
       if (likeSnapshot.exists) {
         await likeRef.delete();
-
-        await recetaRef.update({
-          'likes':
-              FieldValue.increment(-1),
-        });
-
-        await autorRef.update({
-          'likesRecibidos':
-              FieldValue.increment(-1),
-        });
+        await recetaRef.update({'likes': FieldValue.increment(-1)});
+        await autorRef.update({'likesRecibidos': FieldValue.increment(-1)});
 
         if (!mounted) return;
-
         setState(() {
-          final likesActuales =
-              (widget.receta['likes'] ?? 0)
-                  as num;
-
-          widget.receta['likes'] =
-              likesActuales > 0
-                  ? likesActuales - 1
-                  : 0;
-
-          widget.receta['liked'] =
-              false;
+          final likesActuales = (widget.receta['likes'] ?? 0) as num;
+          widget.receta['likes'] = likesActuales > 0 ? likesActuales - 1 : 0;
+          widget.receta['liked'] = false;
         });
-
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '💔 Like eliminado',
-            ),
-            backgroundColor:
-                Color(0xFFF39C12),
+            content: Text('💔 Like eliminado'),
+            backgroundColor: Color(0xFFF39C12),
           ),
         );
-
         return;
       }
 
       await likeRef.set({
         'uid': user.uid,
-        'fechaLike':
-            FieldValue.serverTimestamp(),
+        'fechaLike': FieldValue.serverTimestamp(),
       });
-
-      await recetaRef.update({
-        'likes':
-            FieldValue.increment(1),
-      });
-
-      await autorRef.update({
-        'likesRecibidos':
-            FieldValue.increment(1),
-      });
+      await recetaRef.update({'likes': FieldValue.increment(1)});
+      await autorRef.update({'likesRecibidos': FieldValue.increment(1)});
 
       if (!mounted) return;
-
       setState(() {
-        final likesActuales =
-            (widget.receta['likes'] ?? 0)
-                as num;
-
-        widget.receta['likes'] =
-            likesActuales + 1;
-
-        widget.receta['liked'] =
-            true;
+        final likesActuales = (widget.receta['likes'] ?? 0) as num;
+        widget.receta['likes'] = likesActuales + 1;
+        widget.receta['liked'] = true;
       });
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            '❤️ Like añadido',
-          ),
-          backgroundColor:
-              Color(0xFFE9783F),
+          content: Text('❤️ Like añadido'),
+          backgroundColor: Color(0xFFE9783F),
         ),
       );
     } catch (e) {
-      debugPrint(
-        'ERROR AL DAR LIKE: $e',
-      );
-
+      debugPrint('ERROR AL DAR LIKE: $e');
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '❌ No se pudo actualizar el like: $e',
-          ),
-          backgroundColor:
-              Colors.red,
+          content: Text('❌ No se pudo actualizar el like: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -1429,39 +831,25 @@ class _RecipeDetailScreenState
 
   Future<void> _loadLikeStatus() async {
     try {
-      final user =
-          FirebaseAuth.instance.currentUser;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-      if (user == null) {
-        return;
-      }
+      final recetaId = widget.receta['id']?.toString();
+      if (recetaId == null || recetaId.isEmpty) return;
 
-      final recetaId =
-          widget.receta['id']?.toString();
-
-      if (recetaId == null ||
-          recetaId.isEmpty) {
-        return;
-      }
-
-      final likeSnapshot =
-          await _firestore
-              .collection('recetas')
-              .doc(recetaId)
-              .collection('likes')
-              .doc(user.uid)
-              .get();
+      final likeSnapshot = await _firestore
+          .collection('recetas')
+          .doc(recetaId)
+          .collection('likes')
+          .doc(user.uid)
+          .get();
 
       if (!mounted) return;
-
       setState(() {
-        widget.receta['liked'] =
-            likeSnapshot.exists;
+        widget.receta['liked'] = likeSnapshot.exists;
       });
     } catch (e) {
-      debugPrint(
-        'ERROR AL CARGAR ESTADO DEL LIKE: $e',
-      );
+      debugPrint('ERROR AL CARGAR ESTADO DEL LIKE: $e');
     }
   }
 
@@ -1470,151 +858,84 @@ class _RecipeDetailScreenState
   // ============================================================
 
   Future<void> _addComment() async {
-    final text =
-        _commentController.text.trim();
-
-    // Permitimos comentario con:
-    // texto, emojis, foto o cualquier combinación.
-    if (text.isEmpty &&
-        _fotoComentario == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+    final text = _commentController.text.trim();
+    if (text.isEmpty && _fotoComentario == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            '😊 Escribe algo, agrega un emoji o toma una foto',
-          ),
-          backgroundColor:
-              Color(0xFFF39C12),
+          content: Text('😊 Escribe algo, agrega un emoji o toma una foto'),
+          backgroundColor: Color(0xFFF39C12),
         ),
       );
-
       return;
     }
 
     try {
-      final user =
-          FirebaseAuth.instance.currentUser;
-
+      final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '⚠️ Debes iniciar sesión para comentar',
-            ),
-            backgroundColor:
-                Color(0xFFF39C12),
+            content: Text('⚠️ Debes iniciar sesión para comentar'),
+            backgroundColor: Color(0xFFF39C12),
           ),
         );
-
         return;
       }
 
-      final recetaId =
-          widget.receta['id']?.toString();
-
-      if (recetaId == null ||
-          recetaId.isEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+      final recetaId = widget.receta['id']?.toString();
+      if (recetaId == null || recetaId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '❌ No se encontró el ID de la receta',
-            ),
-            backgroundColor:
-                Colors.red,
+            content: Text('❌ No se encontró el ID de la receta'),
+            backgroundColor: Colors.red,
           ),
         );
-
         return;
       }
 
-      if (_enviandoComentario) {
-        return;
-      }
+      if (_enviandoComentario) return;
 
       setState(() {
         _enviandoComentario = true;
       });
 
       String nombreUsuario = 'Usuario';
-
       try {
-        final usuarioDoc =
-            await _firestore
-                .collection('usuarios')
-                .doc(user.uid)
-                .get();
+        final usuarioDoc = await _firestore
+            .collection('usuarios')
+            .doc(user.uid)
+            .get();
 
         if (usuarioDoc.exists) {
-          final datos =
-              usuarioDoc.data();
-
-          nombreUsuario =
-              datos?['usuario']
-                      ?.toString() ??
-                  datos?['nombre']
-                      ?.toString() ??
-                  'Usuario';
+          final datos = usuarioDoc.data();
+          nombreUsuario = datos?['usuario']?.toString() ??
+              datos?['nombre']?.toString() ??
+              'Usuario';
         }
       } catch (e) {
-        debugPrint(
-          'ERROR AL OBTENER NOMBRE PARA COMENTARIO: $e',
-        );
+        debugPrint('ERROR AL OBTENER NOMBRE PARA COMENTARIO: $e');
       }
 
-      final recetaRef = _firestore
-          .collection('recetas')
-          .doc(recetaId);
-
-      // ========================================================
-      // CREAR PRIMERO EL COMENTARIO
-      // ========================================================
-
-      final comentarioRef =
-          recetaRef
-              .collection('comentarios')
-              .doc();
+      final recetaRef = _firestore.collection('recetas').doc(recetaId);
+      final comentarioRef = recetaRef.collection('comentarios').doc();
 
       await comentarioRef.set({
         'uid': user.uid,
         'usuario': nombreUsuario,
         'texto': text,
         'fotoUrl': '',
-        'fechaComentario':
-            FieldValue.serverTimestamp(),
+        'fechaComentario': FieldValue.serverTimestamp(),
       });
 
-      // ========================================================
-      // SUBIR FOTO SI EXISTE
-      // ========================================================
-
       if (_fotoComentario != null) {
-        final fotoUrl =
-            await _subirFotoComentario(
-          _fotoComentario!,
-          comentarioRef.id,
-        );
-
-        if (fotoUrl != null &&
-            fotoUrl.isNotEmpty) {
-          await comentarioRef.update({
-            'fotoUrl': fotoUrl,
-          });
+        final fotoUrl = await _subirFotoComentario(_fotoComentario!, comentarioRef.id);
+        if (fotoUrl != null && fotoUrl.isNotEmpty) {
+          await comentarioRef.update({'fotoUrl': fotoUrl});
         }
       }
 
-      // ========================================================
-      // ACTUALIZAR CONTADOR
-      // ========================================================
-
-      await recetaRef.update({
-        'comentarios':
-            FieldValue.increment(1),
-      });
+      await recetaRef.update({'comentarios': FieldValue.increment(1)});
 
       _commentController.clear();
-
       if (!mounted) return;
 
       setState(() {
@@ -1622,34 +943,22 @@ class _RecipeDetailScreenState
         _enviandoComentario = false;
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content:
-              Text('💬 Comentario añadido'),
-          backgroundColor:
-              Color(0xFFE9783F),
+          content: Text('💬 Comentario añadido'),
+          backgroundColor: Color(0xFFE9783F),
         ),
       );
     } catch (e) {
-      debugPrint(
-        'ERROR AL AGREGAR COMENTARIO: $e',
-      );
-
+      debugPrint('ERROR AL AGREGAR COMENTARIO: $e');
       if (!mounted) return;
-
       setState(() {
         _enviandoComentario = false;
       });
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '❌ No se pudo agregar el comentario: $e',
-          ),
-          backgroundColor:
-              Colors.red,
+          content: Text('❌ No se pudo agregar el comentario: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -1659,24 +968,13 @@ class _RecipeDetailScreenState
   // ELIMINAR COMENTARIO
   // ============================================================
 
-  Future<void> _deleteComment(
-    String comentarioId,
-  ) async {
+  Future<void> _deleteComment(String comentarioId) async {
     try {
-      final user =
-          FirebaseAuth.instance.currentUser;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-      if (user == null) {
-        return;
-      }
-
-      final recetaId =
-          widget.receta['id']?.toString();
-
-      if (recetaId == null ||
-          recetaId.isEmpty) {
-        return;
-      }
+      final recetaId = widget.receta['id']?.toString();
+      if (recetaId == null || recetaId.isEmpty) return;
 
       final comentarioRef = _firestore
           .collection('recetas')
@@ -1684,87 +982,48 @@ class _RecipeDetailScreenState
           .collection('comentarios')
           .doc(comentarioId);
 
-      final comentario =
-          await comentarioRef.get();
+      final comentario = await comentarioRef.get();
+      if (!comentario.exists) return;
 
-      if (!comentario.exists) {
-        return;
-      }
-
-      final datos =
-          comentario.data();
-
-      if (datos?['uid']?.toString() !=
-          user.uid) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+      final datos = comentario.data();
+      if (datos?['uid']?.toString() != user.uid) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '⚠️ Solo puedes eliminar tus propios comentarios',
-            ),
-            backgroundColor:
-                Color(0xFFF39C12),
+            content: Text('⚠️ Solo puedes eliminar tus propios comentarios'),
+            backgroundColor: Color(0xFFF39C12),
           ),
         );
-
         return;
       }
 
-      // ========================================================
-      // ELIMINAR FOTO DEL STORAGE SI EXISTE
-      // ========================================================
-
-      final fotoUrl =
-          datos?['fotoUrl']?.toString() ?? '';
-
+      final fotoUrl = datos?['fotoUrl']?.toString() ?? '';
       if (fotoUrl.isNotEmpty) {
         try {
-          await FirebaseStorage.instance
-              .refFromURL(fotoUrl)
-              .delete();
+          await FirebaseStorage.instance.refFromURL(fotoUrl).delete();
         } catch (e) {
-          debugPrint(
-            'No se pudo eliminar la foto del Storage: $e',
-          );
+          debugPrint('No se pudo eliminar la foto del Storage: $e');
         }
       }
 
       await comentarioRef.delete();
-
-      await _firestore
-          .collection('recetas')
-          .doc(recetaId)
-          .update({
-        'comentarios':
-            FieldValue.increment(-1),
+      await _firestore.collection('recetas').doc(recetaId).update({
+        'comentarios': FieldValue.increment(-1),
       });
 
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content:
-              Text('🗑️ Comentario eliminado'),
-          backgroundColor:
-              Color(0xFFE9783F),
+          content: Text('🗑️ Comentario eliminado'),
+          backgroundColor: Color(0xFFE9783F),
         ),
       );
     } catch (e) {
-      debugPrint(
-        'ERROR AL ELIMINAR COMENTARIO: $e',
-      );
-
+      debugPrint('ERROR AL ELIMINAR COMENTARIO: $e');
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '❌ No se pudo eliminar el comentario: $e',
-          ),
-          backgroundColor:
-              Colors.red,
+          content: Text('❌ No se pudo eliminar el comentario: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -1774,50 +1033,26 @@ class _RecipeDetailScreenState
   // CONFIRMAR ELIMINACIÓN
   // ============================================================
 
-  void _confirmDeleteComment(
-    String comentarioId,
-  ) {
+  void _confirmDeleteComment(String comentarioId) {
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Eliminar comentario',
-          ),
-
-          content: const Text(
-            '¿Seguro que quieres eliminar este comentario?',
-          ),
-
+          title: const Text('Eliminar comentario'),
+          content: const Text('¿Seguro que quieres eliminar este comentario?'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-
-              child: const Text(
-                'Cancelar',
-              ),
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
             ),
-
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-
-                _deleteComment(
-                  comentarioId,
-                );
+                Navigator.pop(dialogContext);
+                _deleteComment(comentarioId);
               },
-
               child: const Text(
                 'Eliminar',
-                style: TextStyle(
-                  color: Colors.red,
-                ),
+                style: TextStyle(color: Colors.red),
               ),
             ),
           ],
@@ -1832,118 +1067,69 @@ class _RecipeDetailScreenState
 
   Future<void> _saveRecipe() async {
     try {
-      final user =
-          FirebaseAuth.instance.currentUser;
-
+      final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '⚠️ Debes iniciar sesión para guardar recetas',
-            ),
-            backgroundColor:
-                Color(0xFFF39C12),
+            content: Text('⚠️ Debes iniciar sesión para guardar recetas'),
+            backgroundColor: Color(0xFFF39C12),
           ),
         );
-
         return;
       }
 
-      final recetaId =
-          widget.receta['id'];
-
-      if (recetaId == null ||
-          recetaId.toString().isEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
+      final recetaId = widget.receta['id'];
+      if (recetaId == null || recetaId.toString().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '❌ No se encontró el ID de la receta',
-            ),
-            backgroundColor:
-                Colors.red,
+            content: Text('❌ No se encontró el ID de la receta'),
+            backgroundColor: Colors.red,
           ),
         );
-
         return;
       }
 
-      final guardadaQuery =
-          await _firestore
-              .collection(
-                  'recetas_guardadas')
-              .where(
-                'uid',
-                isEqualTo: user.uid,
-              )
-              .where(
-                'recetaId',
-                isEqualTo: recetaId,
-              )
-              .limit(1)
-              .get();
-
-      if (guardadaQuery
-          .docs.isNotEmpty) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
-          const SnackBar(
-            content: Text(
-              '⚠️ Esta receta ya está en favoritos',
-            ),
-            backgroundColor:
-                Color(0xFFF39C12),
-          ),
-        );
-
-        return;
-      }
-
-      await _firestore
+      final guardadaQuery = await _firestore
           .collection('recetas_guardadas')
-          .add({
+          .where('uid', isEqualTo: user.uid)
+          .where('recetaId', isEqualTo: recetaId)
+          .limit(1)
+          .get();
+
+      if (guardadaQuery.docs.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Esta receta ya está en favoritos'),
+            backgroundColor: Color(0xFFF39C12),
+          ),
+        );
+        return;
+      }
+
+      await _firestore.collection('recetas_guardadas').add({
         'uid': user.uid,
         'recetaId': recetaId,
-        'fechaGuardado':
-            FieldValue.serverTimestamp(),
+        'fechaGuardado': FieldValue.serverTimestamp(),
       });
 
-      await _firestore
-          .collection('usuarios')
-          .doc(user.uid)
-          .update({
-        'recetasGuardadas':
-            FieldValue.increment(1),
+      await _firestore.collection('usuarios').doc(user.uid).update({
+        'recetasGuardadas': FieldValue.increment(1),
       });
 
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            '❤️ Receta guardada en favoritos',
-          ),
-          backgroundColor:
-              Color(0xFFE9783F),
+          content: Text('❤️ Receta guardada en favoritos'),
+          backgroundColor: Color(0xFFE9783F),
         ),
       );
     } catch (e) {
-      debugPrint(
-        'ERROR AL GUARDAR RECETA: $e',
-      );
-
+      debugPrint('ERROR AL GUARDAR RECETA: $e');
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '❌ No se pudo guardar la receta: $e',
-          ),
-          backgroundColor:
-              Colors.red,
+          content: Text('❌ No se pudo guardar la receta: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -1954,35 +1140,17 @@ class _RecipeDetailScreenState
   // ============================================================
 
   void _goToCookingMode() {
-    final ingredientes =
-        List<String>.from(
-      widget.receta['ingredientes'] ??
-          [],
-    );
-
-    final instrucciones =
-        List<String>.from(
-      widget.receta['preparacion'] ??
-          [],
-    ).join('\n');
+    final ingredientes = List<String>.from(widget.receta['ingredientes'] ?? []);
+    final instrucciones = List<String>.from(widget.receta['preparacion'] ?? []).join('\n');
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            StepByStepScreen(
-          recipeName:
-              widget.receta['titulo'] ??
-                  'Receta',
-
-          ingredients:
-              ingredientes,
-
-          instructions:
-              instrucciones,
-
-          recipe:
-              widget.receta,
+        builder: (_) => StepByStepScreen(
+          recipeName: widget.receta['titulo'] ?? 'Receta',
+          ingredients: ingredientes,
+          instructions: instrucciones,
+          recipe: widget.receta,
         ),
       ),
     );
@@ -1994,197 +1162,107 @@ class _RecipeDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final receta =
-        widget.receta;
-
-    final ingredientes =
-        List<String>.from(
-      receta['ingredientes'] ?? [],
-    );
-
-    final instrucciones =
-        List<String>.from(
-      receta['preparacion'] ?? [],
-    ).join('\n');
-
-    final autorUid =
-        receta['uid']?.toString() ?? '';
+    final receta = widget.receta;
+    final ingredientes = List<String>.from(receta['ingredientes'] ?? []);
+    final instrucciones = List<String>.from(receta['preparacion'] ?? []).join('\n');
+    final autorUid = receta['uid']?.toString() ?? '';
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'RECETAS PARA TI',
-
           style: TextStyle(
             color: Colors.white,
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
         ),
-
         centerTitle: true,
-
-        backgroundColor:
-            const Color(0xFFE9783F),
-
+        backgroundColor: const Color(0xFFE9783F),
         elevation: 0,
-
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back,
-            color: Colors.white,
-          ),
-
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
         ),
+        // ================================================
+        // BOTÓN COMPARTIR EN DETALLE
+        // ================================================
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined, color: Colors.white),
+            onPressed: () {
+              ShareUtils.shareRecipe(receta);
+            },
+          ),
+        ],
       ),
-
-      backgroundColor:
-          const Color(0xFFFFF8F0),
-
+      backgroundColor: const Color(0xFFFFF8F0),
       body: FutureBuilder<void>(
         future: _loadLikeStatus(),
-
-        builder: (
-          context,
-          likeSnapshot,
-        ) {
+        builder: (context, likeSnapshot) {
           return SingleChildScrollView(
-            padding:
-                const EdgeInsets.all(20),
-
+            padding: const EdgeInsets.all(20),
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ==================================================
                 // AUTOR
                 // ==================================================
 
-                FutureBuilder<
-                    Map<String, String>>(
-                  future:
-                      _getDatosUsuario(
-                    autorUid,
-                  ),
+                FutureBuilder<Map<String, String>>(
+                  future: _getDatosUsuario(autorUid),
+                  builder: (context, userSnapshot) {
+                    final datosUsuario = userSnapshot.data ?? {
+                      'nombre': receta['autor']?.toString() ?? 'Usuario',
+                      'fotoPerfil': '',
+                    };
 
-                  builder: (
-                    context,
-                    userSnapshot,
-                  ) {
-                    final datosUsuario =
-                        userSnapshot.data ??
-                            {
-                              'nombre':
-                                  receta['autor']
-                                          ?.toString() ??
-                                      'Usuario',
-                              'fotoPerfil':
-                                  '',
-                            };
-
-                    final nombre =
-                        datosUsuario[
-                                'nombre'] ??
-                            receta['autor']
-                                    ?.toString() ??
-                                'Usuario';
-
-                    final fotoPerfil =
-                        datosUsuario[
-                                'fotoPerfil'] ??
-                            '';
+                    final nombre = datosUsuario['nombre'] ??
+                        receta['autor']?.toString() ??
+                        'Usuario';
+                    final fotoPerfil = datosUsuario['fotoPerfil'] ?? '';
 
                     return Row(
                       children: [
-                        // ==================================================
-                        // FOTO DE PERFIL DEL AUTOR
-                        // ==================================================
-
                         CircleAvatar(
                           radius: 24,
-
-                          backgroundColor:
-                              const Color(
-                            0xFFE9783F,
-                          ),
-
-                          backgroundImage:
-                              fotoPerfil
-                                      .isNotEmpty
-                                  ? NetworkImage(
-                                      fotoPerfil,
-                                    )
-                                  : null,
-
-                          onBackgroundImageError:
-                              fotoPerfil
-                                      .isNotEmpty
-                                  ? (
-                                      exception,
-                                      stackTrace,
-                                    ) {
-                                      debugPrint(
-                                        'ERROR AL CARGAR FOTO DE PERFIL DEL DETALLE: $exception',
-                                      );
-                                    }
-                                  : null,
-
-                          child:
-                              fotoPerfil.isEmpty
-                                  ? Text(
-                                      nombre
-                                              .isNotEmpty
-                                          ? nombre[0]
-                                              .toUpperCase()
-                                          : 'U',
-
-                                      style:
-                                          const TextStyle(
-                                        color:
-                                            Colors.white,
-                                        fontWeight:
-                                            FontWeight.bold,
-                                        fontSize:
-                                            18,
-                                      ),
-                                    )
-                                  : null,
+                          backgroundColor: const Color(0xFFE9783F),
+                          backgroundImage: fotoPerfil.isNotEmpty
+                              ? NetworkImage(fotoPerfil)
+                              : null,
+                          onBackgroundImageError: fotoPerfil.isNotEmpty
+                              ? (exception, stackTrace) {
+                                  debugPrint(
+                                    'ERROR AL CARGAR FOTO DE PERFIL DEL DETALLE: $exception',
+                                  );
+                                }
+                              : null,
+                          child: fotoPerfil.isEmpty
+                              ? Text(
+                                  nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                  ),
+                                )
+                              : null,
                         ),
-
-                        const SizedBox(
-                          width: 12,
-                        ),
-
+                        const SizedBox(width: 12),
                         Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
-
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               nombre,
-
-                              style:
-                                  const TextStyle(
-                                fontWeight:
-                                    FontWeight.bold,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
                                 fontSize: 16,
                               ),
                             ),
-
                             Text(
-                              receta['fecha'] ??
-                                  'Fecha desconocida',
-
-                              style:
-                                  const TextStyle(
-                                color:
-                                    Colors.grey,
+                              receta['fecha'] ?? 'Fecha desconocida',
+                              style: const TextStyle(
+                                color: Colors.grey,
                                 fontSize: 12,
                               ),
                             ),
@@ -2195,151 +1273,85 @@ class _RecipeDetailScreenState
                   },
                 ),
 
-                const SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
 
                 // ==================================================
                 // FOTO FINAL EN DETALLE
                 // ==================================================
 
-                if (receta['fotoPlatilloUrl']
-                    .toString()
-                    .isNotEmpty)
+                if (receta['fotoPlatilloUrl'].toString().isNotEmpty)
                   ClipRRect(
-                    borderRadius:
-                        BorderRadius.circular(
-                      16,
-                    ),
-
-                    child:
-                        Image.network(
-                      receta[
-                              'fotoPlatilloUrl']
-                          .toString(),
-
-                      width:
-                          double.infinity,
-
-                      height:
-                          230,
-
-                      fit:
-                          BoxFit.cover,
-
-                      errorBuilder:
-                          (
-                        context,
-                        error,
-                        stackTrace,
-                      ) {
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      receta['fotoPlatilloUrl'].toString(),
+                      width: double.infinity,
+                      height: 230,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
                         return Container(
-                          width:
-                              double.infinity,
-                          height:
-                              230,
-                          color:
-                              Colors.grey.shade200,
-                          child:
-                              const Icon(
-                            Icons
-                                .broken_image,
-                            size:
-                                60,
-                            color:
-                                Colors.grey,
+                          width: double.infinity,
+                          height: 230,
+                          color: Colors.grey.shade200,
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 60,
+                            color: Colors.grey,
                           ),
                         );
                       },
                     ),
                   ),
 
-                if (receta['fotoPlatilloUrl']
-                    .toString()
-                    .isNotEmpty)
-                  const SizedBox(
-                    height: 20,
-                  ),
+                if (receta['fotoPlatilloUrl'].toString().isNotEmpty)
+                  const SizedBox(height: 20),
 
                 Text(
                   receta['titulo'],
-
-                  style:
-                      const TextStyle(
+                  style: const TextStyle(
                     fontSize: 24,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        Color(0xFFC95D2E),
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFC95D2E),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 8,
-                ),
+                const SizedBox(height: 8),
 
                 Text(
                   receta['descripcion'],
-
-                  style:
-                      const TextStyle(
+                  style: const TextStyle(
                     fontSize: 16,
-                    color:
-                        Colors.grey,
+                    color: Colors.grey,
                   ),
                 ),
 
-                const SizedBox(
-                  height: 24,
-                ),
+                const SizedBox(height: 24),
 
                 const Text(
                   '🥘 Ingredientes:',
-
-                  style:
-                      TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        Color(0xFFC95D2E),
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFC95D2E),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 8,
-                ),
+                const SizedBox(height: 8),
 
                 ...ingredientes.map(
                   (ing) => Padding(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      vertical: 4,
-                    ),
-
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
                       children: [
                         const Icon(
                           Icons.circle,
                           size: 8,
-                          color:
-                              Color(0xFFE9783F),
+                          color: Color(0xFFE9783F),
                         ),
-
-                        const SizedBox(
-                          width: 8,
-                        ),
-
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             ing,
-
-                            style:
-                                const TextStyle(
-                              fontSize:
-                                  16,
-                            ),
+                            style: const TextStyle(fontSize: 16),
                           ),
                         ),
                       ],
@@ -2347,68 +1359,42 @@ class _RecipeDetailScreenState
                   ),
                 ),
 
-                const SizedBox(
-                  height: 24,
-                ),
+                const SizedBox(height: 24),
 
                 const Text(
                   '👩‍🍳 Instrucciones:',
-
-                  style:
-                      TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        Color(0xFFC95D2E),
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFC95D2E),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 8,
-                ),
+                const SizedBox(height: 8),
 
                 Container(
-                  padding:
-                      const EdgeInsets
-                          .all(16),
-
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        Colors.white,
-
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      12,
-                    ),
-
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
                     boxShadow: const [
                       BoxShadow(
-                        color:
-                            Colors.black12,
+                        color: Colors.black12,
                         blurRadius: 8,
-                        offset:
-                            Offset(0, 2),
+                        offset: Offset(0, 2),
                       ),
                     ],
                   ),
-
                   child: Text(
                     instrucciones,
-
-                    style:
-                        const TextStyle(
+                    style: const TextStyle(
                       fontSize: 16,
                       height: 1.5,
                     ),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 24,
-                ),
+                const SizedBox(height: 24),
 
                 // ==================================================
                 // BOTONES
@@ -2417,729 +1403,326 @@ class _RecipeDetailScreenState
                 Row(
                   children: [
                     Expanded(
-                      child:
-                          ElevatedButton
-                              .icon(
-                        style:
-                            ElevatedButton
-                                .styleFrom(
-                          backgroundColor:
-                              const Color(
-                            0xFFE9783F,
-                          ),
-
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            vertical:
-                                14,
-                          ),
-
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              12,
-                            ),
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE9783F),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-
-                        icon:
-                            const Icon(
-                          Icons.restaurant,
-                          color:
-                              Colors.white,
-                        ),
-
-                        label:
-                            const Text(
+                        icon: const Icon(Icons.restaurant, color: Colors.white),
+                        label: const Text(
                           'Modo Cocinar',
-
-                          style:
-                              TextStyle(
-                            color:
-                                Colors.white,
-                            fontWeight:
-                                FontWeight
-                                    .bold,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-
-                        onPressed:
-                            _goToCookingMode,
+                        onPressed: _goToCookingMode,
                       ),
                     ),
-
-                    const SizedBox(
-                      width: 8,
-                    ),
-
+                    const SizedBox(width: 8),
                     Expanded(
-                      child:
-                          ElevatedButton
-                              .icon(
-                        style:
-                            ElevatedButton
-                                .styleFrom(
-                          backgroundColor:
-                              receta['liked'] ==
-                                      true
-                                  ? Colors.red
-                                  : Colors.white,
-
-                          foregroundColor:
-                              receta['liked'] ==
-                                      true
-                                  ? Colors.white
-                                  : Colors.red,
-
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            vertical:
-                                14,
-                          ),
-
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: receta['liked'] == true
+                              ? Colors.red
+                              : Colors.white,
+                          foregroundColor: receta['liked'] == true
+                              ? Colors.white
+                              : Colors.red,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           elevation: 0,
-
-                          side:
-                              const BorderSide(
-                            color:
-                                Colors.red,
-                          ),
-
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              12,
-                            ),
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-
-                        icon:
-                            Icon(
-                          receta['liked'] ==
-                                  true
+                        icon: Icon(
+                          receta['liked'] == true
                               ? Icons.favorite
-                              : Icons
-                                  .favorite_border,
+                              : Icons.favorite_border,
                         ),
-
-                        label:
-                            Text(
+                        label: Text(
                           '${receta['likes'] ?? 0}',
-
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight
-                                    .bold,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-
-                        onPressed:
-                            _toggleLike,
+                        onPressed: _toggleLike,
                       ),
                     ),
-
-                    const SizedBox(
-                      width: 8,
-                    ),
-
+                    const SizedBox(width: 8),
                     Expanded(
-                      child:
-                          OutlinedButton
-                              .icon(
-                        style:
-                            OutlinedButton
-                                .styleFrom(
-                          side:
-                              const BorderSide(
-                            color:
-                                Color(
-                              0xFFF39C12,
-                            ),
-                          ),
-
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            vertical:
-                                14,
-                          ),
-
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              12,
-                            ),
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFF39C12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-
-                        icon:
-                            const Icon(
-                          Icons
-                              .bookmark_border,
-                          color:
-                              Color(
-                            0xFFF39C12,
-                          ),
+                        icon: const Icon(
+                          Icons.bookmark_border,
+                          color: Color(0xFFF39C12),
                         ),
-
-                        label:
-                            const Text(
+                        label: const Text(
                           'Guardar',
-
-                          style:
-                              TextStyle(
-                            color:
-                                Color(
-                              0xFFF39C12,
-                            ),
-
-                            fontWeight:
-                                FontWeight
-                                    .bold,
+                          style: TextStyle(
+                            color: Color(0xFFF39C12),
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-
-                        onPressed:
-                            _saveRecipe,
+                        onPressed: _saveRecipe,
                       ),
                     ),
                   ],
                 ),
 
-                const SizedBox(
-                  height: 24,
-                ),
+                const SizedBox(height: 24),
 
                 const Text(
                   '💬 Comentarios:',
-
-                  style:
-                      TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        Color(0xFFC95D2E),
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFC95D2E),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 8,
-                ),
+                const SizedBox(height: 8),
 
                 // ==================================================
                 // COMENTARIOS
                 // ==================================================
 
-                StreamBuilder<
-                    QuerySnapshot<
-                        Map<String, dynamic>>>(
-                  stream:
-                      _getComentarios(),
-
-                  builder: (
-                    context,
-                    snapshot,
-                  ) {
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _getComentarios(),
+                  builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return Container(
-                        padding:
-                            const EdgeInsets
-                                .all(12),
-
+                        padding: const EdgeInsets.all(12),
                         child: Text(
-                          'Error al cargar comentarios:\n'
-                          '${snapshot.error}',
-
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.red,
-                          ),
+                          'Error al cargar comentarios:\n${snapshot.error}',
+                          style: const TextStyle(color: Colors.red),
                         ),
                       );
                     }
 
-                    if (snapshot.connectionState ==
-                            ConnectionState
-                                .waiting &&
+                    if (snapshot.connectionState == ConnectionState.waiting &&
                         !snapshot.hasData) {
                       return const Padding(
-                        padding:
-                            EdgeInsets.all(
-                          12,
-                        ),
-
-                        child:
-                            Center(
-                          child:
-                              CircularProgressIndicator(
-                            color:
-                                Color(
-                              0xFFE9783F,
-                            ),
+                        padding: EdgeInsets.all(12),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFFE9783F),
                           ),
                         ),
                       );
                     }
 
-                    final comentarios =
-                        snapshot.data
-                                ?.docs ??
-                            [];
+                    final comentarios = snapshot.data?.docs ?? [];
 
                     if (comentarios.isEmpty) {
                       return const Padding(
-                        padding:
-                            EdgeInsets
-                                .symmetric(
-                          vertical: 12,
-                        ),
-
+                        padding: EdgeInsets.symmetric(vertical: 12),
                         child: Text(
                           'Todavía no hay comentarios.',
-                          style:
-                              TextStyle(
-                            color:
-                                Colors.grey,
-                          ),
+                          style: TextStyle(color: Colors.grey),
                         ),
                       );
                     }
 
                     return Column(
-                      children:
-                          comentarios.map(
-                        (documento) {
-                          final datos =
-                              documento
-                                  .data();
+                      children: comentarios.map((documento) {
+                        final datos = documento.data();
+                        final usuario = datos['usuario']?.toString() ?? 'Usuario';
+                        final texto = datos['texto']?.toString() ?? '';
+                        final fotoUrl = datos['fotoUrl']?.toString() ?? '';
+                        final uidComentario = datos['uid']?.toString() ?? '';
+                        final fechaComentario = _formatFecha(datos['fechaComentario']);
 
-                          final usuario =
-                              datos['usuario']
-                                      ?.toString() ??
-                                  'Usuario';
+                        final usuarioActual = FirebaseAuth.instance.currentUser?.uid;
+                        final esMio = usuarioActual != null && usuarioActual == uidComentario;
 
-                          final texto =
-                              datos['texto']
-                                      ?.toString() ??
-                                  '';
-
-                          final fotoUrl =
-                              datos['fotoUrl']
-                                      ?.toString() ??
-                                  '';
-
-                          final uidComentario =
-                              datos['uid']
-                                      ?.toString() ??
-                                  '';
-
-                          final fechaComentario =
-                              _formatFecha(
-                            datos[
-                                'fechaComentario'],
-                          );
-
-                          final usuarioActual =
-                              FirebaseAuth
-                                  .instance
-                                  .currentUser
-                                  ?.uid;
-
-                          final esMio =
-                              usuarioActual !=
-                                      null &&
-                                  usuarioActual ==
-                                      uidComentario;
-
-                          return Container(
-                            width:
-                                double.infinity,
-
-                            padding:
-                                const EdgeInsets
-                                    .all(
-                              12,
-                            ),
-
-                            margin:
-                                const EdgeInsets
-                                    .only(
-                              bottom: 8,
-                            ),
-
-                            decoration:
-                                BoxDecoration(
-                              color:
-                                  Colors.white,
-
-                              borderRadius:
-                                  BorderRadius
-                                      .circular(
-                                12,
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
                               ),
-
-                              boxShadow: const [
-                                BoxShadow(
-                                  color:
-                                      Colors.black12,
-                                  blurRadius:
-                                      4,
-                                  offset:
-                                      Offset(
-                                    0,
-                                    2,
+                            ],
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: const Color(0xFFE9783F),
+                                child: Text(
+                                  usuario.isNotEmpty ? usuario[0].toUpperCase() : 'U',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              ],
-                            ),
-
-                            child: Row(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment
-                                      .start,
-
-                              children: [
-                                CircleAvatar(
-                                  radius:
-                                      20,
-
-                                  backgroundColor:
-                                      const Color(
-                                    0xFFE9783F,
-                                  ),
-
-                                  child:
-                                      Text(
-                                    usuario
-                                            .isNotEmpty
-                                        ? usuario[0]
-                                            .toUpperCase()
-                                        : 'U',
-
-                                    style:
-                                        const TextStyle(
-                                      color:
-                                          Colors.white,
-                                      fontWeight:
-                                          FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(
-                                  width: 10,
-                                ),
-
-                                Expanded(
-                                  child:
-                                      Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment
-                                            .start,
-
-                                    children: [
-                                      // ==================================================
-                                      // NOMBRE + OPCIONES
-                                      // ==================================================
-
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child:
-                                                Text(
-                                              usuario,
-
-                                              style:
-                                                  const TextStyle(
-                                                fontWeight:
-                                                    FontWeight.bold,
-                                                fontSize:
-                                                    15,
-                                              ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            usuario,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
                                             ),
                                           ),
-
-                                          if (esMio)
-                                            PopupMenuButton<
-                                                String>(
-                                              padding:
-                                                  EdgeInsets.zero,
-
-                                              icon:
-                                                  const Icon(
-                                                Icons
-                                                    .more_vert,
-                                                size:
-                                                    20,
-                                                color:
-                                                    Colors.grey,
+                                        ),
+                                        if (esMio)
+                                          PopupMenuButton<String>(
+                                            padding: EdgeInsets.zero,
+                                            icon: const Icon(
+                                              Icons.more_vert,
+                                              size: 20,
+                                              color: Colors.grey,
+                                            ),
+                                            onSelected: (opcion) {
+                                              if (opcion == 'eliminar') {
+                                                _confirmDeleteComment(documento.id);
+                                              }
+                                            },
+                                            itemBuilder: (context) => const [
+                                              PopupMenuItem<String>(
+                                                value: 'eliminar',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.delete_outline,
+                                                      color: Colors.red,
+                                                    ),
+                                                    SizedBox(width: 8),
+                                                    Text('Eliminar'),
+                                                  ],
+                                                ),
                                               ),
-
-                                              onSelected:
-                                                  (
-                                                opcion,
-                                              ) {
-                                                if (opcion ==
-                                                    'eliminar') {
-                                                  _confirmDeleteComment(
-                                                    documento
-                                                        .id,
-                                                  );
-                                                }
-                                              },
-
-                                              itemBuilder:
-                                                  (
-                                                context,
-                                              ) =>
-                                                  const [
-                                                PopupMenuItem<
-                                                    String>(
-                                                  value:
-                                                      'eliminar',
-
-                                                  child:
-                                                      Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons
-                                                            .delete_outline,
-                                                        color:
-                                                            Colors.red,
+                                            ],
+                                          ),
+                                      ],
+                                    ),
+                                    if (fechaComentario != 'Fecha desconocida')
+                                      Text(
+                                        fechaComentario,
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    const SizedBox(height: 5),
+                                    if (texto.isNotEmpty)
+                                      Text(
+                                        texto,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    if (fotoUrl.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              showDialog(
+                                                context: context,
+                                                builder: (_) => Dialog(
+                                                  backgroundColor: Colors.transparent,
+                                                  child: InteractiveViewer(
+                                                    child: ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(12),
+                                                      child: Image.network(
+                                                        fotoUrl,
+                                                        fit: BoxFit.contain,
+                                                        errorBuilder: (context, error,
+                                                            stackTrace) {
+                                                          return Container(
+                                                            height: 200,
+                                                            color: Colors.white,
+                                                            child: const Center(
+                                                              child: Icon(
+                                                                Icons.broken_image,
+                                                                size: 50,
+                                                                color: Colors.grey,
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
                                                       ),
-
-                                                      SizedBox(
-                                                        width:
-                                                            8,
-                                                      ),
-
-                                                      Text(
-                                                        'Eliminar',
-                                                      ),
-                                                    ],
+                                                    ),
                                                   ),
                                                 ),
-                                              ],
-                                            ),
-                                        ],
-                                      ),
-
-                                      if (fechaComentario !=
-                                          'Fecha desconocida')
-                                        Text(
-                                          fechaComentario,
-
-                                          style:
-                                              const TextStyle(
-                                            color:
-                                                Colors.grey,
-                                            fontSize:
-                                                11,
-                                          ),
-                                        ),
-
-                                      const SizedBox(
-                                        height: 5,
-                                      ),
-
-                                      // ==================================================
-                                      // TEXTO DEL COMENTARIO
-                                      // ==================================================
-
-                                      if (texto.isNotEmpty)
-                                        Text(
-                                          texto,
-
-                                          style:
-                                              const TextStyle(
-                                            fontSize:
-                                                14,
-                                            height:
-                                                1.4,
-                                          ),
-                                        ),
-
-                                      // ==================================================
-                                      // FOTO DEL COMENTARIO
-                                      // ==================================================
-
-                                      if (fotoUrl
-                                          .isNotEmpty)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets
-                                                  .only(
-                                            top:
-                                                8,
-                                          ),
-
-                                          child:
-                                              ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(
-                                              12,
-                                            ),
-
-                                            child:
-                                                GestureDetector(
-                                              onTap:
-                                                  () {
-                                                showDialog(
-                                                  context:
-                                                      context,
-
-                                                  builder:
-                                                      (_) =>
-                                                          Dialog(
-                                                    backgroundColor:
-                                                        Colors.transparent,
-
-                                                    child:
-                                                        InteractiveViewer(
-                                                      child:
-                                                          ClipRRect(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                          12,
-                                                        ),
-
-                                                        child:
-                                                            Image.network(
-                                                          fotoUrl,
-
-                                                          fit:
-                                                              BoxFit.contain,
-
-                                                          errorBuilder:
-                                                              (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) {
-                                                            return Container(
-                                                              height:
-                                                                  200,
-
-                                                              color:
-                                                                  Colors.white,
-
-                                                              child:
-                                                                  const Center(
-                                                                child:
-                                                                    Icon(
-                                                                  Icons.broken_image,
-                                                                  size:
-                                                                      50,
-                                                                  color:
-                                                                      Colors.grey,
-                                                                ),
-                                                              ),
-                                                            );
-                                                          },
-                                                        ),
-                                                      ),
+                                              );
+                                            },
+                                            child: Image.network(
+                                              fotoUrl,
+                                              width: double.infinity,
+                                              height: 200,
+                                              fit: BoxFit.cover,
+                                              loadingBuilder: (context, child,
+                                                  loadingProgress) {
+                                                if (loadingProgress == null) return child;
+                                                return const SizedBox(
+                                                  height: 200,
+                                                  child: Center(
+                                                    child: CircularProgressIndicator(
+                                                      color: Color(0xFFE9783F),
                                                     ),
                                                   ),
                                                 );
                                               },
-
-                                              child:
-                                                  Image.network(
-                                                fotoUrl,
-
-                                                width:
-                                                    double.infinity,
-
-                                                height:
-                                                    200,
-
-                                                fit:
-                                                    BoxFit.cover,
-
-                                                loadingBuilder:
-                                                    (
-                                                  context,
-                                                  child,
-                                                  loadingProgress,
-                                                ) {
-                                                  if (loadingProgress ==
-                                                      null) {
-                                                    return child;
-                                                  }
-
-                                                  return const SizedBox(
-                                                    height:
-                                                        200,
-
-                                                    child:
-                                                        Center(
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        color:
-                                                            Color(
-                                                          0xFFE9783F,
-                                                        ),
-                                                      ),
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return Container(
+                                                  height: 200,
+                                                  color: Colors.grey.shade200,
+                                                  child: const Center(
+                                                    child: Icon(
+                                                      Icons.broken_image,
+                                                      size: 50,
+                                                      color: Colors.grey,
                                                     ),
-                                                  );
-                                                },
-
-                                                errorBuilder:
-                                                    (
-                                                  context,
-                                                  error,
-                                                  stackTrace,
-                                                ) {
-                                                  return Container(
-                                                    height:
-                                                        200,
-
-                                                    color:
-                                                        Colors.grey.shade200,
-
-                                                    child:
-                                                        const Center(
-                                                      child:
-                                                          Icon(
-                                                        Icons.broken_image,
-                                                        size:
-                                                            50,
-                                                        color:
-                                                            Colors.grey,
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
+                                                  ),
+                                                );
+                                              },
                                             ),
                                           ),
                                         ),
-                                    ],
-                                  ),
+                                      ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
-                        },
-                      ).toList(),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                     );
                   },
                 ),
 
-                const SizedBox(
-                  height: 8,
-                ),
+                const SizedBox(height: 8),
 
                 // ==================================================
                 // VISTA PREVIA DE FOTO
@@ -3147,93 +1730,42 @@ class _RecipeDetailScreenState
 
                 if (_fotoComentario != null)
                   Container(
-                    width:
-                        double.infinity,
-
-                    margin:
-                        const EdgeInsets.only(
-                      bottom: 10,
-                    ),
-
-                    padding:
-                        const EdgeInsets.all(
-                      8,
-                    ),
-
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          Colors.white,
-
-                      borderRadius:
-                          BorderRadius.circular(
-                        12,
-                      ),
-
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
                       boxShadow: const [
                         BoxShadow(
-                          color:
-                              Colors.black12,
-                          blurRadius:
-                              4,
-                          offset:
-                              Offset(
-                            0,
-                            2,
-                          ),
+                          color: Colors.black12,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
                         ),
                       ],
                     ),
-
                     child: Stack(
                       children: [
                         ClipRRect(
-                          borderRadius:
-                              BorderRadius.circular(
-                            10,
-                          ),
-
-                          child:
-                              Image.file(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.file(
                             _fotoComentario!,
-
-                            width:
-                                double.infinity,
-
-                            height:
-                                180,
-
-                            fit:
-                                BoxFit.cover,
+                            width: double.infinity,
+                            height: 180,
+                            fit: BoxFit.cover,
                           ),
                         ),
-
                         Positioned(
                           top: 8,
                           right: 8,
-
-                          child:
-                              Container(
-                            decoration:
-                                const BoxDecoration(
-                              color:
-                                  Colors.black54,
-
-                              shape:
-                                  BoxShape.circle,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
                             ),
-
-                            child:
-                                IconButton(
-                              icon:
-                                  const Icon(
-                                Icons.close,
-                                color:
-                                    Colors.white,
-                              ),
-
-                              onPressed:
-                                  _quitarFotoComentario,
+                            child: IconButton(
+                              icon: const Icon(Icons.close, color: Colors.white),
+                              onPressed: _quitarFotoComentario,
                             ),
                           ),
                         ),
@@ -3246,201 +1778,82 @@ class _RecipeDetailScreenState
                 // ==================================================
 
                 Row(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.end,
-
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // ==================================================
-                    // EMOJIS
-                    // ==================================================
-
                     Container(
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            Colors.white,
-
-                        borderRadius:
-                            BorderRadius.circular(
-                          12,
-                        ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-
-                      child:
-                          IconButton(
-                        icon:
-                            const Text(
+                      child: IconButton(
+                        icon: const Text(
                           '😊',
-
-                          style:
-                              TextStyle(
-                            fontSize:
-                                26,
-                          ),
+                          style: TextStyle(fontSize: 26),
                         ),
-
-                        onPressed:
-                            _mostrarEmojis,
+                        onPressed: _mostrarEmojis,
                       ),
                     ),
-
-                    const SizedBox(
-                      width: 6,
-                    ),
-
-                    // ==================================================
-                    // CÁMARA
-                    // ==================================================
-
+                    const SizedBox(width: 6),
                     Container(
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            Colors.white,
-
-                        borderRadius:
-                            BorderRadius.circular(
-                          12,
-                        ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-
-                      child:
-                          IconButton(
-                        icon:
-                            const Icon(
-                          Icons
-                              .camera_alt_outlined,
-
-                          color:
-                              Color(
-                            0xFFC95D2E,
-                          ),
-
-                          size:
-                              25,
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.camera_alt_outlined,
+                          color: Color(0xFFC95D2E),
+                          size: 25,
                         ),
-
-                        onPressed:
-                            _enviandoComentario
-                                ? null
-                                : _tomarFotoComentario,
+                        onPressed: _enviandoComentario ? null : _tomarFotoComentario,
                       ),
                     ),
-
-                    const SizedBox(
-                      width: 6,
-                    ),
-
-                    // ==================================================
-                    // CAMPO DE COMENTARIO
-                    // ==================================================
-
+                    const SizedBox(width: 6),
                     Expanded(
-                      child:
-                          TextField(
-                        controller:
-                            _commentController,
-
+                      child: TextField(
+                        controller: _commentController,
                         minLines: 1,
-
                         maxLines: 4,
-
-                        textInputAction:
-                            TextInputAction
-                                .newline,
-
-                        decoration:
-                            InputDecoration(
-                          hintText:
-                              'Escribe un comentario...',
-
-                          border:
-                              OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(
-                              12,
-                            ),
-
-                            borderSide:
-                                BorderSide.none,
+                        textInputAction: TextInputAction.newline,
+                        decoration: InputDecoration(
+                          hintText: 'Escribe un comentario...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
                           ),
-
-                          filled:
-                              true,
-
-                          fillColor:
-                              Colors.white,
-
-                          contentPadding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal:
-                                14,
-
-                            vertical:
-                                12,
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
                           ),
                         ),
                       ),
                     ),
-
-                    const SizedBox(
-                      width: 8,
-                    ),
-
-                    // ==================================================
-                    // ENVIAR
-                    // ==================================================
-
+                    const SizedBox(width: 8),
                     Container(
-                      decoration:
-                          const BoxDecoration(
-                        color:
-                            Color(
-                          0xFFE9783F,
-                        ),
-
-                        shape:
-                            BoxShape.circle,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE9783F),
+                        shape: BoxShape.circle,
                       ),
-
-                      child:
-                          IconButton(
-                        icon:
-                            _enviandoComentario
-                                ? const SizedBox(
-                                    width:
-                                        20,
-                                    height:
-                                        20,
-
-                                    child:
-                                        CircularProgressIndicator(
-                                      strokeWidth:
-                                          2,
-
-                                      color:
-                                          Colors.white,
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.send,
-                                    color:
-                                        Colors.white,
-                                  ),
-
-                        onPressed:
-                            _enviandoComentario
-                                ? null
-                                : _addComment,
+                      child: IconButton(
+                        icon: _enviandoComentario
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.send, color: Colors.white),
+                        onPressed: _enviandoComentario ? null : _addComment,
                       ),
                     ),
                   ],
                 ),
 
-                const SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
               ],
             ),
           );
