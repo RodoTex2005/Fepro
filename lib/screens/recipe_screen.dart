@@ -42,10 +42,21 @@ class _RecipeScreenState extends State<RecipeScreen> {
   bool _loadingPublication = false;
 
   // ============================================================
+  // AUTOR
+  // ============================================================
+
+  String _authorName = 'Usuario';
+
+  String? _authorPhotoUrl;
+
+  bool _loadingAuthor = false;
+
+  // ============================================================
   // LIKE
   // ============================================================
 
   bool _hasLiked = false;
+
   bool _loadingLike = false;
 
   // ============================================================
@@ -86,7 +97,7 @@ class _RecipeScreenState extends State<RecipeScreen> {
   }
 
   // ============================================================
-  // CARGAR ESTADO DE LA RECETA
+  // CARGAR ESTADO
   // ============================================================
 
   Future<void> _loadRecipeState() async {
@@ -97,17 +108,21 @@ class _RecipeScreenState extends State<RecipeScreen> {
   }
 
   // ============================================================
-  // COMPROBAR SI ESTÁ PUBLICADA
+  // PUBLICADA
   // ============================================================
 
   bool get _isPublished {
-    final value = widget.recipe['publicadaEnForo'];
+    final value =
+        widget.recipe['publicadaEnForo'];
 
     if (value is bool) {
       return value;
     }
 
-    return value?.toString().toLowerCase() == 'true';
+    return value
+            ?.toString()
+            .toLowerCase() ==
+        'true';
   }
 
   // ============================================================
@@ -126,57 +141,199 @@ class _RecipeScreenState extends State<RecipeScreen> {
     });
 
     try {
-      final user = _auth.currentUser;
-
       // ========================================================
-      // 1. INTENTAR CON publicacionId
+      // PRIMERO: USAR DATOS QUE YA VIENEN DEL HISTORIAL
       // ========================================================
 
-      final publicationId =
-          widget.recipe['publicacionId']?.toString();
+      final passedPublicationId =
+          widget.recipe['publicacionId']
+              ?.toString();
 
-      if (publicationId != null &&
-          publicationId.isNotEmpty) {
-        final publicationDoc = await _firestore
-            .collection('publicaciones')
-            .doc(publicationId)
-            .get();
+      final passedAuthorUid =
+          widget.recipe['autorUid']
+                  ?.toString() ??
+              widget.recipe['uid']
+                  ?.toString();
+
+      final passedAuthorName =
+          widget.recipe['nombreUsuario']
+                  ?.toString() ??
+              widget.recipe['usuario']
+                  ?.toString() ??
+              widget.recipe['nombre']
+                  ?.toString();
+
+      final passedAuthorPhoto =
+          widget.recipe['fotoPerfil']
+              ?.toString();
+
+      // Si el historial ya tiene los datos del usuario,
+      // los usamos inmediatamente.
+      if (passedAuthorName != null &&
+          passedAuthorName.isNotEmpty) {
+        _authorName = passedAuthorName;
+      }
+
+      if (passedAuthorPhoto != null &&
+          passedAuthorPhoto.isNotEmpty) {
+        _authorPhotoUrl =
+            passedAuthorPhoto;
+      }
+
+      // ========================================================
+      // 1. BUSCAR PUBLICACIÓN POR ID
+      // ========================================================
+
+      if (passedPublicationId != null &&
+          passedPublicationId.isNotEmpty) {
+        final publicationDoc =
+            await _firestore
+                .collection('publicaciones')
+                .doc(passedPublicationId)
+                .get();
 
         if (publicationDoc.exists) {
-          _publicationId = publicationDoc.id;
-          _publication = publicationDoc.data();
+          _publicationId =
+              publicationDoc.id;
+
+          _publication =
+              publicationDoc.data();
+
+          // Si la publicación contiene datos más recientes,
+          // los usamos.
+          final publicationAuthorName =
+              _publication!['usuarioNombre']
+                  ?.toString();
+
+          final publicationAuthorPhoto =
+              _publication!['fotoPerfil']
+                  ?.toString();
+
+          if (publicationAuthorName != null &&
+              publicationAuthorName.isNotEmpty) {
+            _authorName =
+                publicationAuthorName;
+          }
+
+          if (publicationAuthorPhoto != null &&
+              publicationAuthorPhoto.isNotEmpty) {
+            _authorPhotoUrl =
+                publicationAuthorPhoto;
+          }
+
+          await _loadAuthorData(
+            authorUid:
+                _publication!['autorUid']
+                        ?.toString() ??
+                    passedAuthorUid,
+          );
 
           await _checkLike();
+
+          if (mounted) {
+            setState(() {});
+          }
 
           return;
         }
       }
 
       // ========================================================
-      // 2. BUSCAR POR AUTOR + TÍTULO
+      // 2. BUSCAR POR RECETA ID
       // ========================================================
 
-      if (user != null) {
-        final query = await _firestore
-            .collection('publicaciones')
-            .where(
-              'autorUid',
-              isEqualTo: user.uid,
-            )
-            .where(
-              'titulo',
-              isEqualTo: widget.recipeName,
-            )
-            .limit(1)
-            .get();
+      final recipeId =
+          widget.recipe['recetaId']
+              ?.toString() ??
+          widget.recipe['id']
+              ?.toString();
+
+      if (recipeId != null &&
+          recipeId.isNotEmpty) {
+        final query =
+            await _firestore
+                .collection('publicaciones')
+                .where(
+                  'recetaId',
+                  isEqualTo: recipeId,
+                )
+                .limit(1)
+                .get();
 
         if (query.docs.isNotEmpty) {
-          final doc = query.docs.first;
+          final doc =
+              query.docs.first;
 
-          _publicationId = doc.id;
-          _publication = doc.data();
+          _publicationId =
+              doc.id;
+
+          _publication =
+              doc.data();
+
+          await _loadAuthorData(
+            authorUid:
+                _publication!['autorUid']
+                        ?.toString() ??
+                    passedAuthorUid,
+          );
 
           await _checkLike();
+
+          if (mounted) {
+            setState(() {});
+          }
+
+          return;
+        }
+      }
+
+      // ========================================================
+      // 3. BUSCAR POR AUTOR + TÍTULO
+      // ========================================================
+
+      final authorUid =
+          passedAuthorUid;
+
+      if (authorUid != null &&
+          authorUid.isNotEmpty) {
+        final query =
+            await _firestore
+                .collection('publicaciones')
+                .where(
+                  'autorUid',
+                  isEqualTo: authorUid,
+                )
+                .where(
+                  'titulo',
+                  isEqualTo:
+                      widget.recipeName,
+                )
+                .limit(1)
+                .get();
+
+        if (query.docs.isNotEmpty) {
+          final doc =
+              query.docs.first;
+
+          _publicationId =
+              doc.id;
+
+          _publication =
+              doc.data();
+
+          await _loadAuthorData(
+            authorUid:
+                _publication!['autorUid']
+                    ?.toString(),
+          );
+
+          await _checkLike();
+
+          if (mounted) {
+            setState(() {});
+          }
+
+          return;
         }
       }
     } catch (e) {
@@ -193,13 +350,91 @@ class _RecipeScreenState extends State<RecipeScreen> {
   }
 
   // ============================================================
+  // CARGAR DATOS DEL AUTOR
+  // ============================================================
+
+  Future<void> _loadAuthorData({
+    String? authorUid,
+  }) async {
+    final uid =
+        authorUid ??
+        _publication?['autorUid']
+            ?.toString();
+
+    if (uid == null ||
+        uid.isEmpty) {
+      return;
+    }
+
+    // Si ya tenemos nombre y foto desde el historial,
+    // no es necesario sustituirlos.
+    if (mounted) {
+      setState(() {
+        _loadingAuthor = true;
+      });
+    }
+
+    try {
+      final userDoc =
+          await _firestore
+              .collection('usuarios')
+              .doc(uid)
+              .get();
+
+      if (userDoc.exists) {
+        final data =
+            userDoc.data();
+
+        if (data != null) {
+          final name =
+              data['usuario']
+                      ?.toString() ??
+                  data['nombre']
+                      ?.toString();
+
+          final photo =
+              data['fotoPerfil']
+                  ?.toString();
+
+          if (mounted) {
+            setState(() {
+              if (name != null &&
+                  name.isNotEmpty) {
+                _authorName = name;
+              }
+
+              if (photo != null &&
+                  photo.isNotEmpty) {
+                _authorPhotoUrl =
+                    photo;
+              }
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        'ERROR AL CARGAR DATOS DEL AUTOR: $e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingAuthor = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
   // COMPROBAR LIKE
   // ============================================================
 
   Future<void> _checkLike() async {
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
-    final publicationId = _publicationId;
+    final publicationId =
+        _publicationId;
 
     if (user == null ||
         publicationId == null ||
@@ -208,17 +443,19 @@ class _RecipeScreenState extends State<RecipeScreen> {
     }
 
     try {
-      final likeDoc = await _firestore
-          .collection('publicaciones')
-          .doc(publicationId)
-          .collection('likes')
-          .doc(user.uid)
-          .get();
+      final likeDoc =
+          await _firestore
+              .collection('publicaciones')
+              .doc(publicationId)
+              .collection('likes')
+              .doc(user.uid)
+              .get();
 
       if (!mounted) return;
 
       setState(() {
-        _hasLiked = likeDoc.exists;
+        _hasLiked =
+            likeDoc.exists;
       });
     } catch (e) {
       debugPrint(
@@ -228,13 +465,15 @@ class _RecipeScreenState extends State<RecipeScreen> {
   }
 
   // ============================================================
-  // DAR / QUITAR LIKE
+  // LIKE
   // ============================================================
 
   Future<void> _toggleLike() async {
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
-    final publicationId = _publicationId;
+    final publicationId =
+        _publicationId;
 
     if (user == null ||
         publicationId == null ||
@@ -248,25 +487,25 @@ class _RecipeScreenState extends State<RecipeScreen> {
     });
 
     try {
-      final publicationRef = _firestore
-          .collection('publicaciones')
-          .doc(publicationId);
+      final publicationRef =
+          _firestore
+              .collection('publicaciones')
+              .doc(publicationId);
 
-      final likeRef = publicationRef
-          .collection('likes')
-          .doc(user.uid);
+      final likeRef =
+          publicationRef
+              .collection('likes')
+              .doc(user.uid);
 
-      final likeDoc = await likeRef.get();
+      final likeDoc =
+          await likeRef.get();
 
       if (likeDoc.exists) {
-        // ======================================================
-        // QUITAR LIKE
-        // ======================================================
-
         await likeRef.delete();
 
         await publicationRef.update({
-          'likesCount': FieldValue.increment(-1),
+          'likesCount':
+              FieldValue.increment(-1),
         });
 
         if (!mounted) return;
@@ -276,24 +515,31 @@ class _RecipeScreenState extends State<RecipeScreen> {
 
           if (_publication != null) {
             final current =
-                (_publication!['likesCount'] ?? 0) as num;
+                _publication![
+                    'likesCount'];
 
-            _publication!['likesCount'] =
-                current > 0 ? current - 1 : 0;
+            final currentNumber =
+                current is num
+                    ? current
+                    : 0;
+
+            _publication![
+                'likesCount'] =
+                currentNumber > 0
+                    ? currentNumber - 1
+                    : 0;
           }
         });
       } else {
-        // ======================================================
-        // DAR LIKE
-        // ======================================================
-
         await likeRef.set({
           'uid': user.uid,
-          'fecha': FieldValue.serverTimestamp(),
+          'fecha':
+              FieldValue.serverTimestamp(),
         });
 
         await publicationRef.update({
-          'likesCount': FieldValue.increment(1),
+          'likesCount':
+              FieldValue.increment(1),
         });
 
         if (!mounted) return;
@@ -303,10 +549,17 @@ class _RecipeScreenState extends State<RecipeScreen> {
 
           if (_publication != null) {
             final current =
-                (_publication!['likesCount'] ?? 0) as num;
+                _publication![
+                    'likesCount'];
 
-            _publication!['likesCount'] =
-                current + 1;
+            final currentNumber =
+                current is num
+                    ? current
+                    : 0;
+
+            _publication![
+                'likesCount'] =
+                currentNumber + 1;
           }
         });
       }
@@ -317,13 +570,9 @@ class _RecipeScreenState extends State<RecipeScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '❌ No se pudo actualizar el like: $e',
-          ),
-          backgroundColor: Colors.red,
-        ),
+      _showMessage(
+        '❌ No se pudo actualizar el like: $e',
+        Colors.red,
       );
     } finally {
       if (mounted) {
@@ -335,15 +584,18 @@ class _RecipeScreenState extends State<RecipeScreen> {
   }
 
   // ============================================================
-  // COMPROBAR SI YA ESTÁ GUARDADA
+  // COMPROBAR GUARDADA
   // ============================================================
 
   Future<void> _checkIfSaved() async {
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
     final recipeId =
-        widget.recipe['recetaId']?.toString() ??
-            widget.recipe['id']?.toString();
+        widget.recipe['recetaId']
+                ?.toString() ??
+            widget.recipe['id']
+                ?.toString();
 
     if (user == null ||
         recipeId == null ||
@@ -352,23 +604,25 @@ class _RecipeScreenState extends State<RecipeScreen> {
     }
 
     try {
-      final query = await _firestore
-          .collection('recetas_guardadas')
-          .where(
-            'uid',
-            isEqualTo: user.uid,
-          )
-          .where(
-            'recetaId',
-            isEqualTo: recipeId,
-          )
-          .limit(1)
-          .get();
+      final query =
+          await _firestore
+              .collection('recetas_guardadas')
+              .where(
+                'uid',
+                isEqualTo: user.uid,
+              )
+              .where(
+                'recetaId',
+                isEqualTo: recipeId,
+              )
+              .limit(1)
+              .get();
 
       if (!mounted) return;
 
       setState(() {
-        _isAlreadySaved = query.docs.isNotEmpty;
+        _isAlreadySaved =
+            query.docs.isNotEmpty;
 
         if (query.docs.isNotEmpty) {
           _savedRecipeDocumentId =
@@ -383,22 +637,24 @@ class _RecipeScreenState extends State<RecipeScreen> {
   }
 
   // ============================================================
-  // GUARDAR / QUITAR DE FAVORITOS
+  // GUARDAR / QUITAR
   // ============================================================
 
   Future<void> _toggleSaveRecipe() async {
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
     final recipeId =
-        widget.recipe['recetaId']?.toString() ??
-            widget.recipe['id']?.toString();
+        widget.recipe['recetaId']
+                ?.toString() ??
+            widget.recipe['id']
+                ?.toString();
 
     if (user == null) {
       _showMessage(
         '⚠️ Debes iniciar sesión para guardar recetas.',
         const Color(0xFFF39C12),
       );
-
       return;
     }
 
@@ -408,7 +664,6 @@ class _RecipeScreenState extends State<RecipeScreen> {
         '❌ La receta no tiene un ID válido.',
         Colors.red,
       );
-
       return;
     }
 
@@ -419,15 +674,13 @@ class _RecipeScreenState extends State<RecipeScreen> {
     });
 
     try {
-      // ========================================================
-      // YA ESTÁ GUARDADA → ELIMINAR
-      // ========================================================
-
       if (_isAlreadySaved) {
         if (_savedRecipeDocumentId != null) {
           await _firestore
-              .collection('recetas_guardadas')
-              .doc(_savedRecipeDocumentId)
+              .collection(
+                  'recetas_guardadas')
+              .doc(
+                  _savedRecipeDocumentId)
               .delete();
 
           try {
@@ -449,7 +702,8 @@ class _RecipeScreenState extends State<RecipeScreen> {
 
         setState(() {
           _isAlreadySaved = false;
-          _savedRecipeDocumentId = null;
+          _savedRecipeDocumentId =
+              null;
         });
 
         _showMessage(
@@ -460,13 +714,11 @@ class _RecipeScreenState extends State<RecipeScreen> {
         return;
       }
 
-      // ========================================================
-      // NO ESTÁ GUARDADA → GUARDAR
-      // ========================================================
-
-      final newDoc = await _firestore
-          .collection('recetas_guardadas')
-          .add({
+      final newDoc =
+          await _firestore
+              .collection(
+                  'recetas_guardadas')
+              .add({
         'uid': user.uid,
         'recetaId': recipeId,
         'fechaGuardado':
@@ -491,7 +743,8 @@ class _RecipeScreenState extends State<RecipeScreen> {
 
       setState(() {
         _isAlreadySaved = true;
-        _savedRecipeDocumentId = newDoc.id;
+        _savedRecipeDocumentId =
+            newDoc.id;
       });
 
       _showMessage(
@@ -519,13 +772,15 @@ class _RecipeScreenState extends State<RecipeScreen> {
   }
 
   // ============================================================
-  // ENVIAR COMENTARIO
+  // COMENTARIO
   // ============================================================
 
   Future<void> _sendComment() async {
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
-    final publicationId = _publicationId;
+    final publicationId =
+        _publicationId;
 
     final text =
         _commentController.text.trim();
@@ -535,7 +790,6 @@ class _RecipeScreenState extends State<RecipeScreen> {
         '⚠️ Debes iniciar sesión para comentar.',
         const Color(0xFFF39C12),
       );
-
       return;
     }
 
@@ -551,24 +805,36 @@ class _RecipeScreenState extends State<RecipeScreen> {
     });
 
     try {
-      String userName = 'Usuario';
+      String userName =
+          'Usuario';
+
+      String? userPhotoUrl;
 
       try {
-        final userDoc = await _firestore
-            .collection('usuarios')
-            .doc(user.uid)
-            .get();
+        final userDoc =
+            await _firestore
+                .collection('usuarios')
+                .doc(user.uid)
+                .get();
 
         if (userDoc.exists) {
-          final data = userDoc.data();
+          final data =
+              userDoc.data();
 
           userName =
-              data?['nombre']?.toString() ??
+              data?['usuario']
+                      ?.toString() ??
+                  data?['nombre']
+                      ?.toString() ??
                   'Usuario';
+
+          userPhotoUrl =
+              data?['fotoPerfil']
+                  ?.toString();
         }
       } catch (e) {
         debugPrint(
-          'No se pudo obtener nombre del usuario: $e',
+          'No se pudo obtener datos del usuario: $e',
         );
       }
 
@@ -581,9 +847,13 @@ class _RecipeScreenState extends State<RecipeScreen> {
           .collection('comentarios')
           .add({
         'uid': user.uid,
-        'usuarioNombre': userName,
+        'usuarioNombre':
+            userName,
+        'fotoPerfil':
+            userPhotoUrl,
         'texto': text,
-        'fecha': FieldValue.serverTimestamp(),
+        'fecha':
+            FieldValue.serverTimestamp(),
       });
 
       await publicationRef.update({
@@ -598,15 +868,22 @@ class _RecipeScreenState extends State<RecipeScreen> {
       setState(() {
         if (_publication != null) {
           final current =
-              (_publication!['comentariosCount'] ?? 0)
-                  as num;
+              _publication![
+                  'comentariosCount'];
 
-          _publication!['comentariosCount'] =
-              current + 1;
+          final currentNumber =
+              current is num
+                  ? current
+                  : 0;
+
+          _publication![
+              'comentariosCount'] =
+              currentNumber + 1;
         }
       });
 
-      FocusScope.of(context).unfocus();
+      FocusScope.of(context)
+          .unfocus();
 
       _showMessage(
         '💬 Comentario publicado',
@@ -640,11 +917,16 @@ class _RecipeScreenState extends State<RecipeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => StepByStepScreen(
-          recipeName: widget.recipeName,
-          ingredients: widget.ingredients,
-          instructions: widget.instructions,
-          recipe: widget.recipe,
+        builder: (_) =>
+            StepByStepScreen(
+          recipeName:
+              widget.recipeName,
+          ingredients:
+              widget.ingredients,
+          instructions:
+              widget.instructions,
+          recipe:
+              widget.recipe,
         ),
       ),
     );
@@ -660,51 +942,153 @@ class _RecipeScreenState extends State<RecipeScreen> {
   ) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: color,
+        content:
+            Text(message),
+        backgroundColor:
+            color,
       ),
     );
   }
 
   // ============================================================
-  // FOTO DE LA PUBLICACIÓN
+  // AVATAR
+  // ============================================================
+
+  Widget _buildProfileAvatar({
+    double radius = 24,
+    String? photoUrl,
+  }) {
+    if (photoUrl != null &&
+        photoUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor:
+            const Color(0xFFFFE8E0),
+        backgroundImage:
+            NetworkImage(photoUrl),
+      );
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor:
+          const Color(0xFFFFE8E0),
+      child: Icon(
+        Icons.person,
+        color:
+            const Color(0xFFE9783F),
+        size: radius,
+      ),
+    );
+  }
+
+  // ============================================================
+  // AUTOR
+  // ============================================================
+
+  Widget _buildAuthorSection() {
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 12,
+      ),
+      decoration:
+          BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+            BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6,
+            offset:
+                Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _buildProfileAvatar(
+            radius: 24,
+            photoUrl:
+                _authorPhotoUrl,
+          ),
+
+          const SizedBox(
+            width: 12,
+          ),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Publicado por',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 2,
+                ),
+
+                Text(
+                  _authorName,
+                  style:
+                      const TextStyle(
+                    fontSize: 16,
+                    fontWeight:
+                        FontWeight.bold,
+                    color:
+                        Color(0xFFC95D2E),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const Icon(
+            Icons.public,
+            color:
+                Color(0xFFE9783F),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // FOTO DEL PLATILLO
   // ============================================================
 
   Widget _buildPublicationPhoto() {
-    // ==========================================================
-    // PRIMERO:
-    // Intentamos obtener la foto desde la publicación.
-    // ==========================================================
-
     String? photoUrl =
-        _publication?['fotoPlatilloUrl']
+        _publication?[
+                'fotoPlatilloUrl']
             ?.toString();
 
-    // ==========================================================
-    // SEGUNDO:
-    // Si no está en la publicación, la buscamos directamente
-    // en la receta que recibimos desde Historial de Amelia.
-    // ==========================================================
-
-    if (photoUrl == null || photoUrl.isEmpty) {
-      photoUrl =
-          widget.recipe['fotoPlatilloUrl']
-              ?.toString();
-    }
-
-    // ==========================================================
-    // SI NO EXISTE FOTO
-    // ==========================================================
+    photoUrl ??=
+        widget.recipe[
+                'fotoPlatilloUrl']
+            ?.toString();
 
     if (photoUrl == null ||
         photoUrl.isEmpty) {
       return Container(
         width: double.infinity,
         height: 260,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
+        decoration:
+            BoxDecoration(
+          color:
+              Colors.grey.shade200,
           borderRadius:
               BorderRadius.circular(16),
         ),
@@ -713,7 +1097,8 @@ class _RecipeScreenState extends State<RecipeScreen> {
               MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.image_not_supported_outlined,
+              Icons
+                  .image_not_supported_outlined,
               size: 60,
               color: Colors.grey,
             ),
@@ -729,16 +1114,13 @@ class _RecipeScreenState extends State<RecipeScreen> {
       );
     }
 
-    // ==========================================================
-    // MOSTRAR FOTO
-    // ==========================================================
-
     return ClipRRect(
       borderRadius:
           BorderRadius.circular(16),
       child: Image.network(
         photoUrl,
-        width: double.infinity,
+        width:
+            double.infinity,
         height: 300,
         fit: BoxFit.cover,
         loadingBuilder:
@@ -749,11 +1131,14 @@ class _RecipeScreenState extends State<RecipeScreen> {
 
           return Container(
             height: 300,
-            color: Colors.grey.shade200,
-            child: const Center(
+            color:
+                Colors.grey.shade200,
+            child:
+                const Center(
               child:
                   CircularProgressIndicator(
-                color: Color(0xFFE9783F),
+                color:
+                    Color(0xFFE9783F),
               ),
             ),
           );
@@ -766,13 +1151,15 @@ class _RecipeScreenState extends State<RecipeScreen> {
 
           return Container(
             height: 300,
-            color: Colors.grey.shade200,
+            color:
+                Colors.grey.shade200,
             child: const Column(
               mainAxisAlignment:
                   MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.broken_image_outlined,
+                  Icons
+                      .broken_image_outlined,
                   size: 60,
                   color: Colors.grey,
                 ),
@@ -792,7 +1179,7 @@ class _RecipeScreenState extends State<RecipeScreen> {
   }
 
   // ============================================================
-  // INFORMACIÓN SOCIAL
+  // SOCIAL
   // ============================================================
 
   Widget _buildSocialSection() {
@@ -801,33 +1188,46 @@ class _RecipeScreenState extends State<RecipeScreen> {
     }
 
     final likes =
-        _publication?['likesCount'] ?? 0;
+        _publication?[
+                'likesCount'] ??
+            widget.recipe[
+                'likesCount'] ??
+            widget.recipe[
+                'likes'] ??
+            0;
 
     final comments =
-        _publication?['comentariosCount'] ?? 0;
+        _publication?[
+                'comentariosCount'] ??
+            widget.recipe[
+                'comentariosCount'] ??
+            widget.recipe[
+                'comentarios'] ??
+            0;
 
     return Column(
       crossAxisAlignment:
           CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 12),
+        const SizedBox(
+          height: 12,
+        ),
 
         Row(
           children: [
-            // ==================================================
-            // LIKE
-            // ==================================================
-
             InkWell(
               borderRadius:
-                  BorderRadius.circular(30),
+                  BorderRadius.circular(
+                30,
+              ),
               onTap:
                   _loadingLike
                       ? null
                       : _toggleLike,
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(
+                    const EdgeInsets
+                        .symmetric(
                   horizontal: 14,
                   vertical: 8,
                 ),
@@ -842,12 +1242,15 @@ class _RecipeScreenState extends State<RecipeScreen> {
                       BorderRadius.circular(
                     30,
                   ),
-                  border: Border.all(
+                  border:
+                      Border.all(
                     color: _hasLiked
                         ? const Color(
                             0xFFE9783F,
                           )
-                        : Colors.grey.shade300,
+                        : Colors
+                            .grey
+                            .shade300,
                   ),
                 ),
                 child: Row(
@@ -857,14 +1260,19 @@ class _RecipeScreenState extends State<RecipeScreen> {
                     Icon(
                       _hasLiked
                           ? Icons.favorite
-                          : Icons.favorite_border,
+                          : Icons
+                              .favorite_border,
                       color:
                           const Color(
                         0xFFE9783F,
                       ),
                       size: 20,
                     ),
-                    const SizedBox(width: 6),
+
+                    const SizedBox(
+                      width: 6,
+                    ),
+
                     Text(
                       '$likes',
                       style:
@@ -872,7 +1280,9 @@ class _RecipeScreenState extends State<RecipeScreen> {
                         fontWeight:
                             FontWeight.bold,
                         color:
-                            Color(0xFFC95D2E),
+                            Color(
+                          0xFFC95D2E,
+                        ),
                       ),
                     ),
                   ],
@@ -880,15 +1290,14 @@ class _RecipeScreenState extends State<RecipeScreen> {
               ),
             ),
 
-            const SizedBox(width: 10),
-
-            // ==================================================
-            // COMENTARIOS
-            // ==================================================
+            const SizedBox(
+              width: 10,
+            ),
 
             Container(
               padding:
-                  const EdgeInsets.symmetric(
+                  const EdgeInsets
+                      .symmetric(
                 horizontal: 14,
                 vertical: 8,
               ),
@@ -896,7 +1305,9 @@ class _RecipeScreenState extends State<RecipeScreen> {
                   BoxDecoration(
                 color: Colors.white,
                 borderRadius:
-                    BorderRadius.circular(30),
+                    BorderRadius.circular(
+                  30,
+                ),
                 border: Border.all(
                   color:
                       Colors.grey.shade300,
@@ -907,12 +1318,17 @@ class _RecipeScreenState extends State<RecipeScreen> {
                     MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.chat_bubble_outline,
+                    Icons
+                        .chat_bubble_outline,
                     color:
                         Color(0xFFC95D2E),
                     size: 20,
                   ),
-                  const SizedBox(width: 6),
+
+                  const SizedBox(
+                    width: 6,
+                  ),
+
                   Text(
                     '$comments',
                     style:
@@ -945,22 +1361,24 @@ class _RecipeScreenState extends State<RecipeScreen> {
       crossAxisAlignment:
           CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 24),
+        const SizedBox(
+          height: 24,
+        ),
 
         const Text(
           '💬 Comentarios',
           style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFFC95D2E),
+            fontWeight:
+                FontWeight.bold,
+            color:
+                Color(0xFFC95D2E),
           ),
         ),
 
-        const SizedBox(height: 10),
-
-        // ======================================================
-        // ESCRIBIR COMENTARIO
-        // ======================================================
+        const SizedBox(
+          height: 10,
+        ),
 
         Row(
           crossAxisAlignment:
@@ -1009,13 +1427,17 @@ class _RecipeScreenState extends State<RecipeScreen> {
               ),
             ),
 
-            const SizedBox(width: 8),
+            const SizedBox(
+              width: 8,
+            ),
 
             Container(
               decoration:
                   const BoxDecoration(
-                color: Color(0xFFE9783F),
-                shape: BoxShape.circle,
+                color:
+                    Color(0xFFE9783F),
+                shape:
+                    BoxShape.circle,
               ),
               child: IconButton(
                 onPressed:
@@ -1043,18 +1465,19 @@ class _RecipeScreenState extends State<RecipeScreen> {
           ],
         ),
 
-        const SizedBox(height: 12),
-
-        // ======================================================
-        // LISTA DE COMENTARIOS
-        // ======================================================
+        const SizedBox(
+          height: 12,
+        ),
 
         StreamBuilder<
-            QuerySnapshot<Map<String, dynamic>>>(
+            QuerySnapshot<
+                Map<String, dynamic>>>(
           stream: _firestore
-              .collection('publicaciones')
+              .collection(
+                  'publicaciones')
               .doc(_publicationId)
-              .collection('comentarios')
+              .collection(
+                  'comentarios')
               .orderBy(
                 'fecha',
                 descending: true,
@@ -1062,12 +1485,14 @@ class _RecipeScreenState extends State<RecipeScreen> {
               .snapshots(),
           builder:
               (context, snapshot) {
-            if (snapshot.connectionState ==
+            if (snapshot
+                    .connectionState ==
                 ConnectionState.waiting) {
               return const Padding(
                 padding:
                     EdgeInsets.all(20),
-                child: Center(
+                child:
+                    Center(
                   child:
                       CircularProgressIndicator(
                     color:
@@ -1079,47 +1504,62 @@ class _RecipeScreenState extends State<RecipeScreen> {
 
             if (snapshot.hasError) {
               return Container(
-                width: double.infinity,
+                width:
+                    double.infinity,
                 padding:
-                    const EdgeInsets.all(16),
+                    const EdgeInsets.all(
+                  16,
+                ),
                 decoration:
                     BoxDecoration(
-                  color: Colors.white,
+                  color:
+                      Colors.white,
                   borderRadius:
                       BorderRadius.circular(
                     12,
                   ),
                 ),
-                child: const Text(
+                child:
+                    const Text(
                   'No se pudieron cargar los comentarios.',
-                  style: TextStyle(
-                    color: Colors.grey,
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.grey,
                   ),
                 ),
               );
             }
 
             final docs =
-                snapshot.data?.docs ?? [];
+                snapshot.data?.docs ??
+                    [];
 
             if (docs.isEmpty) {
               return Container(
-                width: double.infinity,
+                width:
+                    double.infinity,
                 padding:
-                    const EdgeInsets.all(16),
+                    const EdgeInsets.all(
+                  16,
+                ),
                 decoration:
                     BoxDecoration(
-                  color: Colors.white,
+                  color:
+                      Colors.white,
                   borderRadius:
                       BorderRadius.circular(
                     12,
                   ),
                 ),
-                child: const Text(
+                child:
+                    const Text(
                   'Todavía no hay comentarios. '
                   '¡Sé el primero en comentar! 🍳',
-                  style: TextStyle(
-                    color: Colors.grey,
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.grey,
                   ),
                 ),
               );
@@ -1141,8 +1581,13 @@ class _RecipeScreenState extends State<RecipeScreen> {
                             ?.toString() ??
                         '';
 
+                final photoUrl =
+                    data['fotoPerfil']
+                        ?.toString();
+
                 return Container(
-                  width: double.infinity,
+                  width:
+                      double.infinity,
                   margin:
                       const EdgeInsets.only(
                     bottom: 10,
@@ -1153,7 +1598,8 @@ class _RecipeScreenState extends State<RecipeScreen> {
                   ),
                   decoration:
                       BoxDecoration(
-                    color: Colors.white,
+                    color:
+                        Colors.white,
                     borderRadius:
                         BorderRadius.circular(
                       14,
@@ -1163,9 +1609,13 @@ class _RecipeScreenState extends State<RecipeScreen> {
                       BoxShadow(
                         color:
                             Colors.black12,
-                        blurRadius: 4,
+                        blurRadius:
+                            4,
                         offset:
-                            Offset(0, 2),
+                            Offset(
+                          0,
+                          2,
+                        ),
                       ),
                     ],
                   ),
@@ -1174,16 +1624,10 @@ class _RecipeScreenState extends State<RecipeScreen> {
                         CrossAxisAlignment
                             .start,
                     children: [
-                      const CircleAvatar(
+                      _buildProfileAvatar(
                         radius: 18,
-                        backgroundColor:
-                            Color(0xFFFFE8E0),
-                        child: Icon(
-                          Icons.person,
-                          color:
-                              Color(0xFFE9783F),
-                          size: 20,
-                        ),
+                        photoUrl:
+                            photoUrl,
                       ),
 
                       const SizedBox(
@@ -1191,7 +1635,8 @@ class _RecipeScreenState extends State<RecipeScreen> {
                       ),
 
                       Expanded(
-                        child: Column(
+                        child:
+                            Column(
                           crossAxisAlignment:
                               CrossAxisAlignment
                                   .start,
@@ -1203,7 +1648,9 @@ class _RecipeScreenState extends State<RecipeScreen> {
                                 fontWeight:
                                     FontWeight.bold,
                                 color:
-                                    Color(0xFFC95D2E),
+                                    Color(
+                                  0xFFC95D2E,
+                                ),
                               ),
                             ),
 
@@ -1215,8 +1662,10 @@ class _RecipeScreenState extends State<RecipeScreen> {
                               text,
                               style:
                                   const TextStyle(
-                                fontSize: 14,
-                                height: 1.4,
+                                fontSize:
+                                    14,
+                                height:
+                                    1.4,
                               ),
                             ),
                           ],
@@ -1238,26 +1687,37 @@ class _RecipeScreenState extends State<RecipeScreen> {
   // ============================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title:
+            const Text(
           '📝 Receta',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+          style:
+              TextStyle(
+            color:
+                Colors.white,
+            fontWeight:
+                FontWeight.bold,
           ),
         ),
         backgroundColor:
             const Color(0xFFE9783F),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
+        leading:
+            IconButton(
+          icon:
+              const Icon(
             Icons.arrow_back,
-            color: Colors.white,
+            color:
+                Colors.white,
           ),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pop(
+              context,
+            );
           },
         ),
       ),
@@ -1265,30 +1725,37 @@ class _RecipeScreenState extends State<RecipeScreen> {
       backgroundColor:
           const Color(0xFFFFF8F0),
 
-      body: SingleChildScrollView(
+      body:
+          SingleChildScrollView(
         padding:
-            const EdgeInsets.all(20),
-
-        child: Column(
+            const EdgeInsets.all(
+          20,
+        ),
+        child:
+            Column(
           crossAxisAlignment:
-              CrossAxisAlignment.start,
+              CrossAxisAlignment
+                  .start,
           children: [
             // ==================================================
-            // FOTO SI ESTÁ PUBLICADA
-            //
-            // IMPORTANTE:
-            // Ya no dependemos de _publication != null.
-            // _buildPublicationPhoto() buscará primero la foto
-            // en publicaciones y después en widget.recipe.
+            // PUBLICACIÓN
             // ==================================================
 
             if (_isPublished &&
                 !_loadingPublication) ...[
+              _buildAuthorSection(),
+
+              const SizedBox(
+                height: 14,
+              ),
+
               _buildPublicationPhoto(),
 
               _buildSocialSection(),
 
-              const SizedBox(height: 24),
+              const SizedBox(
+                height: 24,
+              ),
             ],
 
             // ==================================================
@@ -1296,35 +1763,49 @@ class _RecipeScreenState extends State<RecipeScreen> {
             // ==================================================
 
             Container(
-              width: double.infinity,
+              width:
+                  double.infinity,
               padding:
-                  const EdgeInsets.all(16),
+                  const EdgeInsets.all(
+                16,
+              ),
               decoration:
                   BoxDecoration(
                 color:
-                    const Color(0xFFE9783F),
+                    const Color(
+                  0xFFE9783F,
+                ),
                 borderRadius:
-                    BorderRadius.circular(12),
+                    BorderRadius.circular(
+                  12,
+                ),
               ),
-              child: Row(
+              child:
+                  Row(
                 children: [
                   const Icon(
                     Icons.restaurant,
-                    color: Colors.white,
+                    color:
+                        Colors.white,
                     size: 28,
                   ),
 
-                  const SizedBox(width: 12),
+                  const SizedBox(
+                    width: 12,
+                  ),
 
                   Expanded(
-                    child: Text(
+                    child:
+                        Text(
                       widget.recipeName,
                       style:
                           const TextStyle(
-                        fontSize: 22,
+                        fontSize:
+                            22,
                         fontWeight:
                             FontWeight.bold,
-                        color: Colors.white,
+                        color:
+                            Colors.white,
                       ),
                     ),
                   ),
@@ -1332,7 +1813,9 @@ class _RecipeScreenState extends State<RecipeScreen> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(
+              height: 24,
+            ),
 
             // ==================================================
             // INGREDIENTES
@@ -1342,41 +1825,57 @@ class _RecipeScreenState extends State<RecipeScreen> {
               '🥘 Ingredientes',
               style:
                   TextStyle(
-                fontSize: 18,
+                fontSize:
+                    18,
                 fontWeight:
                     FontWeight.bold,
                 color:
-                    Color(0xFFC95D2E),
+                    Color(
+                  0xFFC95D2E,
+                ),
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(
+              height: 8,
+            ),
 
-            ...widget.ingredients.map(
-              (ing) => Padding(
+            ...widget.ingredients
+                .map(
+              (ing) =>
+                  Padding(
                 padding:
-                    const EdgeInsets.symmetric(
+                    const EdgeInsets
+                        .symmetric(
                   vertical: 4,
                 ),
-                child: Row(
+                child:
+                    Row(
                   crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
                   children: [
                     const Icon(
                       Icons.circle,
                       size: 8,
                       color:
-                          Color(0xFFE9783F),
+                          Color(
+                        0xFFE9783F,
+                      ),
                     ),
 
-                    const SizedBox(width: 8),
+                    const SizedBox(
+                      width: 8,
+                    ),
 
                     Expanded(
-                      child: Text(
+                      child:
+                          Text(
                         ing,
                         style:
                             const TextStyle(
-                          fontSize: 16,
+                          fontSize:
+                              16,
                         ),
                       ),
                     ),
@@ -1385,7 +1884,9 @@ class _RecipeScreenState extends State<RecipeScreen> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(
+              height: 24,
+            ),
 
             // ==================================================
             // INSTRUCCIONES
@@ -1395,57 +1896,80 @@ class _RecipeScreenState extends State<RecipeScreen> {
               '👩‍🍳 Instrucciones',
               style:
                   TextStyle(
-                fontSize: 18,
+                fontSize:
+                    18,
                 fontWeight:
                     FontWeight.bold,
                 color:
-                    Color(0xFFC95D2E),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Container(
-              width: double.infinity,
-              padding:
-                  const EdgeInsets.all(16),
-              decoration:
-                  BoxDecoration(
-                color: Colors.white,
-                borderRadius:
-                    BorderRadius.circular(12),
-                boxShadow:
-                    const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset:
-                        Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Text(
-                widget.instructions,
-                style:
-                    const TextStyle(
-                  fontSize: 16,
-                  height: 1.5,
+                    Color(
+                  0xFFC95D2E,
                 ),
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 8,
+            ),
+
+            Container(
+              width:
+                  double.infinity,
+              padding:
+                  const EdgeInsets.all(
+                16,
+              ),
+              decoration:
+                  BoxDecoration(
+                color:
+                    Colors.white,
+                borderRadius:
+                    BorderRadius.circular(
+                  12,
+                ),
+                boxShadow:
+                    const [
+                  BoxShadow(
+                    color:
+                        Colors.black12,
+                    blurRadius:
+                        8,
+                    offset:
+                        Offset(
+                      0,
+                      2,
+                    ),
+                  ),
+                ],
+              ),
+              child:
+                  Text(
+                widget.instructions,
+                style:
+                    const TextStyle(
+                  fontSize:
+                      16,
+                  height:
+                      1.5,
+                ),
+              ),
+            ),
+
+            const SizedBox(
+              height: 20,
+            ),
 
             // ==================================================
             // MODO COCINAR
             // ==================================================
 
             SizedBox(
-              width: double.infinity,
+              width:
+                  double.infinity,
               child:
                   ElevatedButton.icon(
                 style:
-                    ElevatedButton.styleFrom(
+                    ElevatedButton
+                        .styleFrom(
                   backgroundColor:
                       const Color(
                     0xFFE9783F,
@@ -1463,18 +1987,24 @@ class _RecipeScreenState extends State<RecipeScreen> {
                     ),
                   ),
                 ),
-                icon: const Icon(
-                  Icons.restaurant_menu,
-                  color: Colors.white,
+                icon:
+                    const Icon(
+                  Icons
+                      .restaurant_menu,
+                  color:
+                      Colors.white,
                 ),
-                label: const Text(
+                label:
+                    const Text(
                   '👩‍🍳 Modo Cocinar',
                   style:
                       TextStyle(
-                    fontSize: 16,
+                    fontSize:
+                        16,
                     fontWeight:
                         FontWeight.bold,
-                    color: Colors.white,
+                    color:
+                        Colors.white,
                   ),
                 ),
                 onPressed:
@@ -1482,21 +2012,28 @@ class _RecipeScreenState extends State<RecipeScreen> {
               ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(
+              height: 10,
+            ),
 
             // ==================================================
             // GUARDAR
             // ==================================================
 
             SizedBox(
-              width: double.infinity,
+              width:
+                  double.infinity,
               child:
                   OutlinedButton.icon(
                 style:
-                    OutlinedButton.styleFrom(
-                  side: const BorderSide(
+                    OutlinedButton
+                        .styleFrom(
+                  side:
+                      const BorderSide(
                     color:
-                        Color(0xFFF39C12),
+                        Color(
+                      0xFFF39C12,
+                    ),
                   ),
                   padding:
                       const EdgeInsets
@@ -1511,36 +2048,47 @@ class _RecipeScreenState extends State<RecipeScreen> {
                     ),
                   ),
                 ),
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color:
-                              Color(0xFFF39C12),
-                        ),
-                      )
-                    : Icon(
-                        _isAlreadySaved
-                            ? Icons.favorite
-                            : Icons
-                                .favorite_border,
-                        color:
-                            const Color(
-                          0xFFF39C12,
-                        ),
-                      ),
-                label: Text(
+                icon:
+                    _isSaving
+                        ? const SizedBox(
+                            width:
+                                18,
+                            height:
+                                18,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth:
+                                  2,
+                              color:
+                                  Color(
+                                0xFFF39C12,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            _isAlreadySaved
+                                ? Icons
+                                    .favorite
+                                : Icons
+                                    .favorite_border,
+                            color:
+                                const Color(
+                              0xFFF39C12,
+                            ),
+                          ),
+                label:
+                    Text(
                   _isAlreadySaved
                       ? 'Guardada en favoritos'
                       : 'Guardar receta',
                   style:
                       const TextStyle(
                     color:
-                        Color(0xFFF39C12),
-                    fontSize: 15,
+                        Color(
+                      0xFFF39C12,
+                    ),
+                    fontSize:
+                        15,
                     fontWeight:
                         FontWeight.bold,
                   ),
@@ -1553,14 +2101,16 @@ class _RecipeScreenState extends State<RecipeScreen> {
             ),
 
             // ==================================================
-            // COMENTARIOS SOLO PUBLICADA
+            // COMENTARIOS
             // ==================================================
 
             if (_isPublished &&
                 _publicationId != null)
               _buildComments(),
 
-            const SizedBox(height: 20),
+            const SizedBox(
+              height: 20,
+            ),
           ],
         ),
       ),

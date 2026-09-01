@@ -38,13 +38,16 @@ class _ForumScreenState extends State<ForumScreen> {
   }
 
   // ============================================================
-  // OBTENER NOMBRE DEL USUARIO
+  // OBTENER DATOS DEL USUARIO
   // ============================================================
 
-  Future<String> _getNombreUsuario(String uid) async {
+  Future<Map<String, String>> _getDatosUsuario(String uid) async {
     try {
       if (uid.isEmpty) {
-        return 'Usuario';
+        return {
+          'nombre': 'Usuario',
+          'fotoPerfil': '',
+        };
       }
 
       final documento = await _firestore
@@ -55,19 +58,50 @@ class _ForumScreenState extends State<ForumScreen> {
       if (documento.exists) {
         final datos = documento.data();
 
-        return datos?['usuario']?.toString() ??
-            datos?['nombre']?.toString() ??
-            'Usuario';
+        return {
+          'nombre': datos?['usuario']?.toString() ??
+              datos?['nombre']?.toString() ??
+              'Usuario',
+
+          'fotoPerfil':
+              datos?['fotoPerfil']?.toString() ?? '',
+        };
       }
 
-      return 'Usuario';
+      return {
+        'nombre': 'Usuario',
+        'fotoPerfil': '',
+      };
     } catch (e) {
       debugPrint(
-        'ERROR AL OBTENER NOMBRE DEL USUARIO: $e',
+        'ERROR AL OBTENER DATOS DEL USUARIO: $e',
       );
 
-      return 'Usuario';
+      return {
+        'nombre': 'Usuario',
+        'fotoPerfil': '',
+      };
     }
+  }
+
+  // ============================================================
+  // OBTENER NOMBRE DEL USUARIO
+  // ============================================================
+
+  Future<String> _getNombreUsuario(String uid) async {
+    final datos = await _getDatosUsuario(uid);
+
+    return datos['nombre'] ?? 'Usuario';
+  }
+
+  // ============================================================
+  // OBTENER FOTO DE PERFIL
+  // ============================================================
+
+  Future<String> _getFotoPerfilUsuario(String uid) async {
+    final datos = await _getDatosUsuario(uid);
+
+    return datos['fotoPerfil'] ?? '';
   }
 
   // ============================================================
@@ -244,7 +278,7 @@ class _ForumScreenState extends State<ForumScreen> {
 
               final receta =
                   <String, dynamic>{
-                 'id': documento.id,
+                'id': documento.id,
                 'recetaId': documento.id,
 
                 'uid': uid,
@@ -354,9 +388,9 @@ class _ForumScreenState extends State<ForumScreen> {
 
                         child:
                             FutureBuilder<
-                                String>(
+                                Map<String, String>>(
                           future:
-                              _getNombreUsuario(
+                              _getDatosUsuario(
                             uid,
                           ),
 
@@ -364,38 +398,84 @@ class _ForumScreenState extends State<ForumScreen> {
                             context,
                             userSnapshot,
                           ) {
+                            final datosUsuario =
+                                userSnapshot.data ??
+                                    {
+                                      'nombre':
+                                          'Usuario',
+                                      'fotoPerfil':
+                                          '',
+                                    };
+
                             final nombre =
-                                userSnapshot
-                                        .data ??
+                                datosUsuario[
+                                        'nombre'] ??
                                     'Usuario';
+
+                            final fotoPerfil =
+                                datosUsuario[
+                                        'fotoPerfil'] ??
+                                    '';
 
                             receta['autor'] =
                                 nombre;
 
                             return Row(
                               children: [
+                                // ==================================================
+                                // FOTO DE PERFIL
+                                // ==================================================
+
                                 CircleAvatar(
+                                  radius: 22,
+
                                   backgroundColor:
                                       const Color(
                                     0xFFE9783F,
                                   ),
 
-                                  child:
-                                      Text(
-                                    nombre
-                                            .isNotEmpty
-                                        ? nombre[0]
-                                            .toUpperCase()
-                                        : 'U',
+                                  backgroundImage:
+                                      fotoPerfil
+                                              .isNotEmpty
+                                          ? NetworkImage(
+                                              fotoPerfil,
+                                            )
+                                          : null,
 
-                                    style:
-                                        const TextStyle(
-                                      color:
-                                          Colors.white,
-                                      fontWeight:
-                                          FontWeight.bold,
-                                    ),
-                                  ),
+                                  onBackgroundImageError:
+                                      fotoPerfil
+                                              .isNotEmpty
+                                          ? (
+                                              exception,
+                                              stackTrace,
+                                            ) {
+                                              debugPrint(
+                                                'ERROR AL CARGAR FOTO DE PERFIL: $exception',
+                                              );
+                                            }
+                                          : null,
+
+                                  child:
+                                      fotoPerfil
+                                              .isEmpty
+                                          ? Text(
+                                              nombre
+                                                      .isNotEmpty
+                                                  ? nombre[0]
+                                                      .toUpperCase()
+                                                  : 'U',
+
+                                              style:
+                                                  const TextStyle(
+                                                color:
+                                                    Colors.white,
+                                                fontWeight:
+                                                    FontWeight.bold,
+                                                fontSize:
+                                                    17,
+                                              ),
+                                            )
+                                          : null,
                                 ),
 
                                 const SizedBox(
@@ -814,6 +894,55 @@ class _RecipeDetailScreenState
 
   // Foto seleccionada para el comentario
   File? _fotoComentario;
+
+  // ============================================================
+  // OBTENER DATOS DEL USUARIO
+  // ============================================================
+
+  Future<Map<String, String>> _getDatosUsuario(
+    String uid,
+  ) async {
+    try {
+      if (uid.isEmpty) {
+        return {
+          'nombre': 'Usuario',
+          'fotoPerfil': '',
+        };
+      }
+
+      final documento = await _firestore
+          .collection('usuarios')
+          .doc(uid)
+          .get();
+
+      if (documento.exists) {
+        final datos = documento.data();
+
+        return {
+          'nombre': datos?['usuario']?.toString() ??
+              datos?['nombre']?.toString() ??
+              'Usuario',
+
+          'fotoPerfil':
+              datos?['fotoPerfil']?.toString() ?? '',
+        };
+      }
+
+      return {
+        'nombre': 'Usuario',
+        'fotoPerfil': '',
+      };
+    } catch (e) {
+      debugPrint(
+        'ERROR AL OBTENER DATOS DEL USUARIO: $e',
+      );
+
+      return {
+        'nombre': 'Usuario',
+        'fotoPerfil': '',
+      };
+    }
+  }
 
   // ============================================================
   // FORMATEAR FECHA
@@ -1878,6 +2007,9 @@ class _RecipeDetailScreenState
       receta['preparacion'] ?? [],
     ).join('\n');
 
+    final autorUid =
+        receta['uid']?.toString() ?? '';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -1933,67 +2065,134 @@ class _RecipeDetailScreenState
                 // AUTOR
                 // ==================================================
 
-                Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor:
-                          const Color(
-                        0xFFE9783F,
-                      ),
+                FutureBuilder<
+                    Map<String, String>>(
+                  future:
+                      _getDatosUsuario(
+                    autorUid,
+                  ),
 
-                      child: Text(
-                        receta['autor']
-                                .toString()
-                                .isNotEmpty
-                            ? receta['autor']
-                                .toString()[0]
-                                .toUpperCase()
-                            : 'U',
+                  builder: (
+                    context,
+                    userSnapshot,
+                  ) {
+                    final datosUsuario =
+                        userSnapshot.data ??
+                            {
+                              'nombre':
+                                  receta['autor']
+                                          ?.toString() ??
+                                      'Usuario',
+                              'fotoPerfil':
+                                  '',
+                            };
 
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white,
-                        ),
-                      ),
-                    ),
+                    final nombre =
+                        datosUsuario[
+                                'nombre'] ??
+                            receta['autor']
+                                    ?.toString() ??
+                                'Usuario';
 
-                    const SizedBox(
-                      width: 12,
-                    ),
+                    final fotoPerfil =
+                        datosUsuario[
+                                'fotoPerfil'] ??
+                            '';
 
-                    Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
-
+                    return Row(
                       children: [
-                        Text(
-                          receta['autor'] ??
-                              'Usuario',
+                        // ==================================================
+                        // FOTO DE PERFIL DEL AUTOR
+                        // ==================================================
 
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight.bold,
-                            fontSize: 16,
+                        CircleAvatar(
+                          radius: 24,
+
+                          backgroundColor:
+                              const Color(
+                            0xFFE9783F,
                           ),
+
+                          backgroundImage:
+                              fotoPerfil
+                                      .isNotEmpty
+                                  ? NetworkImage(
+                                      fotoPerfil,
+                                    )
+                                  : null,
+
+                          onBackgroundImageError:
+                              fotoPerfil
+                                      .isNotEmpty
+                                  ? (
+                                      exception,
+                                      stackTrace,
+                                    ) {
+                                      debugPrint(
+                                        'ERROR AL CARGAR FOTO DE PERFIL DEL DETALLE: $exception',
+                                      );
+                                    }
+                                  : null,
+
+                          child:
+                              fotoPerfil.isEmpty
+                                  ? Text(
+                                      nombre
+                                              .isNotEmpty
+                                          ? nombre[0]
+                                              .toUpperCase()
+                                          : 'U',
+
+                                      style:
+                                          const TextStyle(
+                                        color:
+                                            Colors.white,
+                                        fontWeight:
+                                            FontWeight.bold,
+                                        fontSize:
+                                            18,
+                                      ),
+                                    )
+                                  : null,
                         ),
 
-                        Text(
-                          receta['fecha'] ??
-                              'Fecha desconocida',
+                        const SizedBox(
+                          width: 12,
+                        ),
 
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.grey,
-                            fontSize: 12,
-                          ),
+                        Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+
+                          children: [
+                            Text(
+                              nombre,
+
+                              style:
+                                  const TextStyle(
+                                fontWeight:
+                                    FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+
+                            Text(
+                              receta['fecha'] ??
+                                  'Fecha desconocida',
+
+                              style:
+                                  const TextStyle(
+                                color:
+                                    Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
 
                 const SizedBox(
