@@ -453,7 +453,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
 
           // ========================================================
-          // CONFIGURACIÓN
+          // CONFIGURACIÓN (SIN MODO OSCURO)
           // ========================================================
 
           _ProfileOption(
@@ -797,32 +797,16 @@ class ForumRecipeCard extends StatelessWidget {
       receta['fechaPublicacionForo'] ?? receta['fechaCreacion'],
     );
 
-    // VALORES PARA DEBUG
-    final titulo = receta['titulo']?.toString() ?? 'Sin título';
-    final foto = receta['fotoPlatilloUrl']?.toString() ?? '';
-    final likes = receta['likes'] ?? 0;
-    final comentarios = receta['comentarios'] ?? 0;
-
-    debugPrint('🏷️ ForumRecipeCard: $titulo');
-    debugPrint('   📸 Foto: ${foto.isNotEmpty ? "SÍ" : "NO"}');
-    debugPrint('   ❤️ Likes: $likes');
-
     return Card(
       elevation: 4,
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ==================================================
-            // USUARIO
-            // ==================================================
-
             Padding(
               padding: const EdgeInsets.all(16),
               child: FutureBuilder<Map<String, String>>(
@@ -886,11 +870,6 @@ class ForumRecipeCard extends StatelessWidget {
                 },
               ),
             ),
-
-            // ==================================================
-            // FOTO FINAL DEL PLATILLO
-            // ==================================================
-
             ClipRRect(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(0),
@@ -946,11 +925,6 @@ class ForumRecipeCard extends StatelessWidget {
                       ),
               ),
             ),
-
-            // ==================================================
-            // INFORMACIÓN DE RECETA
-            // ==================================================
-
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -1049,10 +1023,6 @@ class ForumRecipeCard extends StatelessWidget {
 class AmeliaHistoryScreen extends StatelessWidget {
   const AmeliaHistoryScreen({super.key});
 
-  // ============================================================
-  // OBTENER RECETAS DEL USUARIO
-  // ============================================================
-
   Stream<QuerySnapshot<Map<String, dynamic>>> _getMisRecetas() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
@@ -1061,10 +1031,6 @@ class AmeliaHistoryScreen extends StatelessWidget {
         .where('uid', isEqualTo: user.uid)
         .snapshots();
   }
-
-  // ============================================================
-  // OBTENER DATOS DEL USUARIO
-  // ============================================================
 
   Future<Map<String, String>> _getDatosUsuario(String uid) async {
     try {
@@ -1089,20 +1055,12 @@ class AmeliaHistoryScreen extends StatelessWidget {
     }
   }
 
-  // ============================================================
-  // CONVERTIR A ENTERO
-  // ============================================================
-
   int _getIntValue(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
     if (value is List) return value.length;
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
-
-  // ============================================================
-  // FORMATEAR FECHA
-  // ============================================================
 
   String _formatFecha(dynamic fecha) {
     if (fecha == null) return 'Fecha desconocida';
@@ -1121,10 +1079,6 @@ class AmeliaHistoryScreen extends StatelessWidget {
     return '$dia/$mes/$anio · $hora:$minuto';
   }
 
-  // ============================================================
-  // OBTENER FECHA
-  // ============================================================
-
   dynamic _obtenerFecha(Map<String, dynamic> datos) {
     return datos['fechaCreacion'] ??
         datos['fechaGeneracion'] ??
@@ -1134,37 +1088,7 @@ class AmeliaHistoryScreen extends StatelessWidget {
   }
 
   // ============================================================
-  // VERIFICAR SI ESTÁ PUBLICADA (ROBUSTA)
-  // ============================================================
-
-  bool _isPublicada(dynamic valorPublicada, Map<String, dynamic> data) {
-    // 1. Verificar por publicadaEnForo
-    bool publicada = false;
-
-    if (valorPublicada != null) {
-      if (valorPublicada is bool) {
-        publicada = valorPublicada;
-      } else if (valorPublicada is String) {
-        publicada = valorPublicada.toLowerCase() == 'true' ||
-            valorPublicada.toLowerCase() == '1';
-      } else if (valorPublicada is num) {
-        publicada = valorPublicada == 1;
-      }
-    }
-
-    // 2. Si tiene publicacionId, también está publicada
-    if (!publicada) {
-      final publicacionId = data['publicacionId']?.toString();
-      if (publicacionId != null && publicacionId.isNotEmpty) {
-        publicada = true;
-      }
-    }
-
-    return publicada;
-  }
-
-  // ============================================================
-  // ABRIR RECETA
+  // ABRIR RECETA - VERSIÓN SIMPLIFICADA
   // ============================================================
 
   Future<void> _openRecipeDetail(
@@ -1179,6 +1103,7 @@ class AmeliaHistoryScreen extends StatelessWidget {
     final nombreUsuario = datosUsuario['nombre'] ?? 'Usuario';
     final fotoPerfil = datosUsuario['fotoPerfil'] ?? '';
 
+    // Usar datos de la receta (NO de publicaciones)
     final likes = _getIntValue(receta['likes'] ?? receta['likesCount'] ?? 0);
     final comentarios = _getIntValue(receta['comentarios'] ?? receta['comentariosCount'] ?? 0);
 
@@ -1215,9 +1140,24 @@ class AmeliaHistoryScreen extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  // TARJETA PRIVADA
-  // ============================================================
+  Widget _placeholderDishImage({double height = 200}) {
+    return Container(
+      width: double.infinity,
+      height: height,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFE9783F), Color(0xFFC95D2E)],
+        ),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.restaurant,
+          size: 60,
+          color: Colors.white70,
+        ),
+      ),
+    );
+  }
 
   Widget _buildPrivateCard(
     BuildContext context,
@@ -1392,8 +1332,19 @@ class AmeliaHistoryScreen extends StatelessWidget {
   }
 
   // ============================================================
-  // BUILD
+  // VERIFICAR SI ESTÁ PUBLICADA
   // ============================================================
+
+  bool _isPublicada(dynamic valorPublicada) {
+    if (valorPublicada == null) return false;
+    if (valorPublicada is bool) return valorPublicada;
+    if (valorPublicada is String) {
+      return valorPublicada.toLowerCase() == 'true' ||
+          valorPublicada.toLowerCase() == '1';
+    }
+    if (valorPublicada is num) return valorPublicada == 1;
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1497,12 +1448,18 @@ class AmeliaHistoryScreen extends StatelessWidget {
               final datos = documento.data();
 
               // ==================================================
-              // VERIFICAR SI ESTÁ PUBLICADA (ROBUSTA)
+              // VERIFICAR SI ESTÁ PUBLICADA
               // ==================================================
 
-              final isPublicada = _isPublicada(datos['publicadaEnForo'], datos);
+              final publicada = _isPublicada(datos['publicadaEnForo']);
 
-              debugPrint('🔍 Historial: ${datos['nombre']} - Publicada: $isPublicada');
+              // Si tiene publicacionId, también está publicada
+              final hasPublicacionId = datos['publicacionId'] != null &&
+                  datos['publicacionId'].toString().isNotEmpty;
+
+              final isPublicada = publicada || hasPublicacionId;
+
+              debugPrint('🔍 Receta: ${datos['nombre']} - Publicada: $isPublicada');
 
               final uid = datos['uid']?.toString() ??
                   FirebaseAuth.instance.currentUser?.uid ??

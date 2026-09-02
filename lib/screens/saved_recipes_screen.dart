@@ -84,7 +84,6 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
   // ============================================================
 
   bool _isPublicada(dynamic valorPublicada, Map<String, dynamic> data) {
-    // 1. Verificar por publicadaEnForo
     bool publicada = false;
 
     if (valorPublicada != null) {
@@ -98,7 +97,6 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
       }
     }
 
-    // 2. Si tiene publicacionId, también está publicada
     if (!publicada) {
       final publicacionId = data['publicacionId']?.toString();
       if (publicacionId != null && publicacionId.isNotEmpty) {
@@ -171,7 +169,7 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
         }
 
         // ========================================================
-        // VERIFICAR SI ESTÁ PUBLICADA (VERSIÓN ROBUSTA)
+        // VERIFICAR SI ESTÁ PUBLICADA
         // ========================================================
 
         final publicada = _isPublicada(data['publicadaEnForo'], data);
@@ -357,6 +355,7 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
     final nombreAutor = recipe['autorNombre'] ?? 'Usuario';
     final fotoAutor = recipe['autorFoto'] ?? '';
     final ingredients = List<String>.from(recipe['ingredients'] ?? []);
+    final recetaId = recipe['recetaId']?.toString() ?? '';
 
     return Card(
       elevation: 4,
@@ -466,8 +465,22 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            subtitle: Text(
-              '${ingredients.length} ingredientes',
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${ingredients.length} ingredientes',
+                ),
+                if (recetaId.isNotEmpty)
+                  Text(
+                    'ID: $recetaId',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey.shade500,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+              ],
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -580,16 +593,12 @@ class _SavedRecipesScreenState extends State<SavedRecipesScreen> {
               itemBuilder: (context, index) {
                 final recipe = savedRecipes[index];
 
-                // ==================================================
-                // VERIFICAR SI ESTÁ PUBLICADA (USANDO LA MISMA FUNCIÓN)
-                // ==================================================
-
                 final publicada = _isPublicada(recipe['publicadaEnForo'], recipe);
 
                 debugPrint('🔍 Favoritos: ${recipe['name']} - Publicada: $publicada');
 
                 // ==================================================
-                // SI ESTÁ PUBLICADA → USAR ForumRecipeCard (DESDE profile_screen.dart)
+                // SI ESTÁ PUBLICADA → USAR ForumRecipeCard
                 // ==================================================
 
                 if (publicada) {
