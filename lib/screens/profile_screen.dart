@@ -9,7 +9,8 @@ import 'saved_recipes_screen.dart';
 import 'recipe_screen.dart';
 import 'frames_screen.dart';
 import 'step_by_step_screen.dart';
-import '../utils/share_utils.dart'; // Importación para compartir
+import '../utils/share_utils.dart';
+import 'edit_profile_screen.dart';
 
 // ================================================================
 // PROFILE SCREEN
@@ -379,6 +380,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 8),
+
+          // ========================================================
+          // PERSONALIZAR MARCO
+          // ========================================================
+
           _ProfileOption(
             icon: Icons.palette,
             title: 'Personalizar Marco',
@@ -393,6 +399,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
               await _cargarEstadisticas();
             },
           ),
+
+          // ========================================================
+          // EDITAR PERFIL
+          // ========================================================
+
+          _ProfileOption(
+            icon: Icons.person,
+            title: 'Editar Perfil',
+            iconColor: const Color(0xFFE9783F),
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditProfileScreen(
+                    userData: userData ?? {},
+                  ),
+                ),
+              );
+              if (result == true) {
+                _loadUserData();
+                _cargarEstadisticas();
+              }
+            },
+          ),
+
+          // ========================================================
+          // MIS RECETAS FAVORITAS
+          // ========================================================
+
           _ProfileOption(
             icon: Icons.favorite,
             title: 'Mis Recetas Favoritas',
@@ -405,12 +440,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               await _cargarEstadisticas();
             },
           ),
+
+          // ========================================================
+          // HISTORIAL DE AMELIA
+          // ========================================================
+
           _ProfileOption(
             icon: Icons.history,
             title: 'Historial de Amelia',
             iconColor: const Color(0xFFE9783F),
             onTap: _abrirHistorialAmelia,
           ),
+
+          // ========================================================
+          // CONFIGURACIÓN
+          // ========================================================
+
           _ProfileOption(
             icon: Icons.settings,
             title: 'Configuración',
@@ -424,6 +469,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
             },
           ),
+
+          // ========================================================
+          // AYUDA
+          // ========================================================
+
           _ProfileOption(
             icon: Icons.help_outline,
             title: 'Ayuda',
@@ -437,7 +487,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
             },
           ),
+
           const SizedBox(height: 20),
+
+          // ========================================================
+          // CERRAR SESIÓN
+          // ========================================================
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: SizedBox(
@@ -741,16 +797,32 @@ class ForumRecipeCard extends StatelessWidget {
       receta['fechaPublicacionForo'] ?? receta['fechaCreacion'],
     );
 
+    // VALORES PARA DEBUG
+    final titulo = receta['titulo']?.toString() ?? 'Sin título';
+    final foto = receta['fotoPlatilloUrl']?.toString() ?? '';
+    final likes = receta['likes'] ?? 0;
+    final comentarios = receta['comentarios'] ?? 0;
+
+    debugPrint('🏷️ ForumRecipeCard: $titulo');
+    debugPrint('   📸 Foto: ${foto.isNotEmpty ? "SÍ" : "NO"}');
+    debugPrint('   ❤️ Likes: $likes');
+
     return Card(
       elevation: 4,
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ==================================================
+            // USUARIO
+            // ==================================================
+
             Padding(
               padding: const EdgeInsets.all(16),
               child: FutureBuilder<Map<String, String>>(
@@ -814,6 +886,11 @@ class ForumRecipeCard extends StatelessWidget {
                 },
               ),
             ),
+
+            // ==================================================
+            // FOTO FINAL DEL PLATILLO
+            // ==================================================
+
             ClipRRect(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(0),
@@ -869,6 +946,11 @@ class ForumRecipeCard extends StatelessWidget {
                       ),
               ),
             ),
+
+            // ==================================================
+            // INFORMACIÓN DE RECETA
+            // ==================================================
+
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -942,9 +1024,6 @@ class ForumRecipeCard extends StatelessWidget {
                         ],
                       ),
                       const Spacer(),
-                      // ================================================
-                      // BOTÓN COMPARTIR (MODIFICADO)
-                      // ================================================
                       IconButton(
                         icon: const Icon(Icons.share_outlined),
                         onPressed: () {
@@ -970,6 +1049,10 @@ class ForumRecipeCard extends StatelessWidget {
 class AmeliaHistoryScreen extends StatelessWidget {
   const AmeliaHistoryScreen({super.key});
 
+  // ============================================================
+  // OBTENER RECETAS DEL USUARIO
+  // ============================================================
+
   Stream<QuerySnapshot<Map<String, dynamic>>> _getMisRecetas() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
@@ -978,6 +1061,10 @@ class AmeliaHistoryScreen extends StatelessWidget {
         .where('uid', isEqualTo: user.uid)
         .snapshots();
   }
+
+  // ============================================================
+  // OBTENER DATOS DEL USUARIO
+  // ============================================================
 
   Future<Map<String, String>> _getDatosUsuario(String uid) async {
     try {
@@ -1002,12 +1089,20 @@ class AmeliaHistoryScreen extends StatelessWidget {
     }
   }
 
+  // ============================================================
+  // CONVERTIR A ENTERO
+  // ============================================================
+
   int _getIntValue(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
     if (value is List) return value.length;
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
+
+  // ============================================================
+  // FORMATEAR FECHA
+  // ============================================================
 
   String _formatFecha(dynamic fecha) {
     if (fecha == null) return 'Fecha desconocida';
@@ -1026,6 +1121,10 @@ class AmeliaHistoryScreen extends StatelessWidget {
     return '$dia/$mes/$anio · $hora:$minuto';
   }
 
+  // ============================================================
+  // OBTENER FECHA
+  // ============================================================
+
   dynamic _obtenerFecha(Map<String, dynamic> datos) {
     return datos['fechaCreacion'] ??
         datos['fechaGeneracion'] ??
@@ -1033,6 +1132,40 @@ class AmeliaHistoryScreen extends StatelessWidget {
         datos['createdAt'] ??
         datos['fechaPublicacionForo'];
   }
+
+  // ============================================================
+  // VERIFICAR SI ESTÁ PUBLICADA (ROBUSTA)
+  // ============================================================
+
+  bool _isPublicada(dynamic valorPublicada, Map<String, dynamic> data) {
+    // 1. Verificar por publicadaEnForo
+    bool publicada = false;
+
+    if (valorPublicada != null) {
+      if (valorPublicada is bool) {
+        publicada = valorPublicada;
+      } else if (valorPublicada is String) {
+        publicada = valorPublicada.toLowerCase() == 'true' ||
+            valorPublicada.toLowerCase() == '1';
+      } else if (valorPublicada is num) {
+        publicada = valorPublicada == 1;
+      }
+    }
+
+    // 2. Si tiene publicacionId, también está publicada
+    if (!publicada) {
+      final publicacionId = data['publicacionId']?.toString();
+      if (publicacionId != null && publicacionId.isNotEmpty) {
+        publicada = true;
+      }
+    }
+
+    return publicada;
+  }
+
+  // ============================================================
+  // ABRIR RECETA
+  // ============================================================
 
   Future<void> _openRecipeDetail(
     BuildContext context,
@@ -1082,24 +1215,9 @@ class AmeliaHistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _placeholderDishImage({double height = 200}) {
-    return Container(
-      width: double.infinity,
-      height: height,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFE9783F), Color(0xFFC95D2E)],
-        ),
-      ),
-      child: const Center(
-        child: Icon(
-          Icons.restaurant,
-          size: 60,
-          color: Colors.white70,
-        ),
-      ),
-    );
-  }
+  // ============================================================
+  // TARJETA PRIVADA
+  // ============================================================
 
   Widget _buildPrivateCard(
     BuildContext context,
@@ -1273,6 +1391,10 @@ class AmeliaHistoryScreen extends StatelessWidget {
     );
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1374,26 +1496,13 @@ class AmeliaHistoryScreen extends StatelessWidget {
               final documento = recetas[index];
               final datos = documento.data();
 
-              bool publicada = false;
-              final valorPublicada = datos['publicadaEnForo'];
+              // ==================================================
+              // VERIFICAR SI ESTÁ PUBLICADA (ROBUSTA)
+              // ==================================================
 
-              if (valorPublicada != null) {
-                if (valorPublicada is bool) {
-                  publicada = valorPublicada;
-                } else if (valorPublicada is String) {
-                  publicada = valorPublicada.toLowerCase() == 'true' ||
-                      valorPublicada.toLowerCase() == '1';
-                } else if (valorPublicada is num) {
-                  publicada = valorPublicada == 1;
-                }
-              }
+              final isPublicada = _isPublicada(datos['publicadaEnForo'], datos);
 
-              if (!publicada) {
-                final publicacionId = datos['publicacionId']?.toString();
-                if (publicacionId != null && publicacionId.isNotEmpty) {
-                  publicada = true;
-                }
-              }
+              debugPrint('🔍 Historial: ${datos['nombre']} - Publicada: $isPublicada');
 
               final uid = datos['uid']?.toString() ??
                   FirebaseAuth.instance.currentUser?.uid ??
@@ -1401,6 +1510,10 @@ class AmeliaHistoryScreen extends StatelessWidget {
 
               final fecha = _formatFecha(_obtenerFecha(datos));
               final recetaId = datos['recetaId']?.toString() ?? documento.id;
+
+              // ==================================================
+              // CONSTRUIR RECETA COMPLETA
+              // ==================================================
 
               final receta = <String, dynamic>{
                 'id': documento.id,
@@ -1427,7 +1540,7 @@ class AmeliaHistoryScreen extends StatelessWidget {
                 'comentarios': _getIntValue(datos['comentarios'] ?? datos['comentariosCount']),
                 'comentariosCount': _getIntValue(
                     datos['comentariosCount'] ?? datos['comentarios']),
-                'publicadaEnForo': publicada,
+                'publicadaEnForo': isPublicada,
                 'fechaCreacion': datos['fechaCreacion'],
                 'fechaPublicacionForo': datos['fechaPublicacionForo'],
                 'usuario': datos['usuario'] ??
@@ -1439,12 +1552,20 @@ class AmeliaHistoryScreen extends StatelessWidget {
                 'fotoPerfil': datos['fotoPerfil'],
               };
 
-              if (publicada) {
+              // ==================================================
+              // SI ESTÁ PUBLICADA → USAR DISEÑO DEL FORO
+              // ==================================================
+
+              if (isPublicada) {
                 return ForumRecipeCard(
                   receta: receta,
                   onTap: () => _openRecipeDetail(context, receta),
                 );
               }
+
+              // ==================================================
+              // SI ES PRIVADA → USAR DISEÑO PRIVADO
+              // ==================================================
 
               return _buildPrivateCard(
                 context,

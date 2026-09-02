@@ -21,6 +21,8 @@ dependencies:
   http: ^1.6.0
   flutter_markdown: 0.6.15
   share_plus: ^13.3.0
+  path_provider: ^2.1.0
+  
 
   # --- Agregado para el módulo de reconocimiento de ingredientes ---
   image_picker: ^1.1.2

@@ -64,24 +64,6 @@ class _ForumScreenState extends State<ForumScreen> {
   }
 
   // ============================================================
-  // OBTENER NOMBRE DEL USUARIO
-  // ============================================================
-
-  Future<String> _getNombreUsuario(String uid) async {
-    final datos = await _getDatosUsuario(uid);
-    return datos['nombre'] ?? 'Usuario';
-  }
-
-  // ============================================================
-  // OBTENER FOTO DE PERFIL
-  // ============================================================
-
-  Future<String> _getFotoPerfilUsuario(String uid) async {
-    final datos = await _getDatosUsuario(uid);
-    return datos['fotoPerfil'] ?? '';
-  }
-
-  // ============================================================
   // FORMATEAR FECHA
   // ============================================================
 
@@ -104,6 +86,106 @@ class _ForumScreenState extends State<ForumScreen> {
     final minuto = fechaDateTime.minute.toString().padLeft(2, '0');
 
     return '$dia/$mes/$anio · $hora:$minuto';
+  }
+
+  // ============================================================
+  // VERIFICAR SI EL USUARIO YA DIO LIKE
+  // ============================================================
+
+  Future<bool> _checkIfLiked(String recetaId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+
+      final likeDoc = await FirebaseFirestore.instance
+          .collection('recetas')
+          .doc(recetaId)
+          .collection('likes')
+          .doc(user.uid)
+          .get();
+
+      return likeDoc.exists;
+    } catch (e) {
+      debugPrint('Error al verificar like: $e');
+      return false;
+    }
+  }
+
+  // ============================================================
+  // DAR / QUITAR LIKE DESDE EL FORO
+  // ============================================================
+
+  Future<void> _toggleLikeFromForum({
+    required String recetaId,
+    required String autorUid,
+    required int currentLikes,
+    required bool isLiked,
+    required Function(int, bool) onSuccess,
+  }) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Debes iniciar sesión para dar like'),
+            backgroundColor: Color(0xFFF39C12),
+          ),
+        );
+        return;
+      }
+
+      final firestore = FirebaseFirestore.instance;
+      final recetaRef = firestore.collection('recetas').doc(recetaId);
+      final autorRef = firestore.collection('usuarios').doc(autorUid);
+      final likeRef = recetaRef.collection('likes').doc(user.uid);
+
+      final likeSnapshot = await likeRef.get();
+
+      if (likeSnapshot.exists) {
+        // Quitar like
+        await likeRef.delete();
+        await recetaRef.update({'likes': FieldValue.increment(-1)});
+        await autorRef.update({'likesRecibidos': FieldValue.increment(-1)});
+
+        final newLikes = currentLikes > 0 ? currentLikes - 1 : 0;
+        onSuccess(newLikes, false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('💔 Like eliminado'),
+            backgroundColor: Color(0xFFF39C12),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      } else {
+        // Dar like
+        await likeRef.set({
+          'uid': user.uid,
+          'fechaLike': FieldValue.serverTimestamp(),
+        });
+        await recetaRef.update({'likes': FieldValue.increment(1)});
+        await autorRef.update({'likesRecibidos': FieldValue.increment(1)});
+
+        onSuccess(currentLikes + 1, true);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❤️ Like añadido'),
+            backgroundColor: Color(0xFFE9783F),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('ERROR AL DAR LIKE DESDE FORO: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error al procesar like: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // ============================================================
@@ -217,121 +299,146 @@ class _ForumScreenState extends State<ForumScreen> {
                 'fotoPlatilloUrl': datos['fotoPlatilloUrl'] ?? '',
               };
 
-              return Card(
-                elevation: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () => _openRecipeDetail(receta),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ==================================================
-                      // USUARIO
-                      // ==================================================
+              return FutureBuilder<bool>(
+                future: _checkIfLiked(receta['id']),
+                builder: (context, likeSnapshot) {
+                  final isLiked = likeSnapshot.data ?? false;
+                  receta['liked'] = isLiked;
 
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: FutureBuilder<Map<String, String>>(
-                          future: _getDatosUsuario(uid),
-                          builder: (context, userSnapshot) {
-                            final datosUsuario = userSnapshot.data ?? {
-                              'nombre': 'Usuario',
-                              'fotoPerfil': '',
-                            };
+                  return Card(
+                    elevation: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _openRecipeDetail(receta),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ==================================================
+                          // USUARIO
+                          // ==================================================
 
-                            final nombre = datosUsuario['nombre'] ?? 'Usuario';
-                            final fotoPerfil = datosUsuario['fotoPerfil'] ?? '';
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: FutureBuilder<Map<String, String>>(
+                              future: _getDatosUsuario(uid),
+                              builder: (context, userSnapshot) {
+                                final datosUsuario = userSnapshot.data ?? {
+                                  'nombre': 'Usuario',
+                                  'fotoPerfil': '',
+                                };
 
-                            receta['autor'] = nombre;
+                                final nombre = datosUsuario['nombre'] ?? 'Usuario';
+                                final fotoPerfil = datosUsuario['fotoPerfil'] ?? '';
 
-                            return Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 22,
-                                  backgroundColor: const Color(0xFFE9783F),
-                                  backgroundImage: fotoPerfil.isNotEmpty
-                                      ? NetworkImage(fotoPerfil)
-                                      : null,
-                                  onBackgroundImageError: fotoPerfil.isNotEmpty
-                                      ? (exception, stackTrace) {
-                                          debugPrint(
-                                            'ERROR AL CARGAR FOTO DE PERFIL: $exception',
-                                          );
-                                        }
-                                      : null,
-                                  child: fotoPerfil.isEmpty
-                                      ? Text(
-                                          nombre.isNotEmpty
-                                              ? nombre[0].toUpperCase()
-                                              : 'U',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 17,
+                                receta['autor'] = nombre;
+
+                                return Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 22,
+                                      backgroundColor: const Color(0xFFE9783F),
+                                      backgroundImage: fotoPerfil.isNotEmpty
+                                          ? NetworkImage(fotoPerfil)
+                                          : null,
+                                      onBackgroundImageError: fotoPerfil.isNotEmpty
+                                          ? (exception, stackTrace) {
+                                              debugPrint(
+                                                'ERROR AL CARGAR FOTO DE PERFIL: $exception',
+                                              );
+                                            }
+                                          : null,
+                                      child: fotoPerfil.isEmpty
+                                          ? Text(
+                                              nombre.isNotEmpty
+                                                  ? nombre[0].toUpperCase()
+                                                  : 'U',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 17,
+                                              ),
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            nombre,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
                                           ),
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        nombre,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
+                                          Text(
+                                            fecha,
+                                            style: const TextStyle(
+                                              color: Colors.grey,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      Text(
-                                        fecha,
-                                        style: const TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
 
-                      // ==================================================
-                      // FOTO FINAL DEL PLATILLO
-                      // ==================================================
+                          // ==================================================
+                          // FOTO FINAL DEL PLATILLO
+                          // ==================================================
 
-                      ClipRRect(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(0),
-                          topRight: Radius.circular(0),
-                        ),
-                        child: SizedBox(
-                          height: 180,
-                          width: double.infinity,
-                          child: receta['fotoPlatilloUrl'].toString().isNotEmpty
-                              ? Image.network(
-                                  receta['fotoPlatilloUrl'].toString(),
-                                  width: double.infinity,
-                                  height: 180,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return const Center(
-                                      child: CircularProgressIndicator(
-                                        color: Color(0xFFE9783F),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
+                          ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(0),
+                              topRight: Radius.circular(0),
+                            ),
+                            child: SizedBox(
+                              height: 180,
+                              width: double.infinity,
+                              child: receta['fotoPlatilloUrl'].toString().isNotEmpty
+                                  ? Image.network(
+                                      receta['fotoPlatilloUrl'].toString(),
+                                      width: double.infinity,
+                                      height: 180,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return const Center(
+                                          child: CircularProgressIndicator(
+                                            color: Color(0xFFE9783F),
+                                          ),
+                                        );
+                                      },
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          decoration: const BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Color(0xFFE9783F),
+                                                Color(0xFFC95D2E),
+                                              ],
+                                            ),
+                                          ),
+                                          child: const Center(
+                                            child: Icon(
+                                              Icons.broken_image,
+                                              size: 60,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : Container(
                                       decoration: const BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [
@@ -342,128 +449,154 @@ class _ForumScreenState extends State<ForumScreen> {
                                       ),
                                       child: const Center(
                                         child: Icon(
-                                          Icons.broken_image,
+                                          Icons.restaurant,
                                           size: 60,
                                           color: Colors.white,
                                         ),
                                       ),
-                                    );
-                                  },
-                                )
-                              : Container(
-                                  decoration: const BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Color(0xFFE9783F),
-                                        Color(0xFFC95D2E),
-                                      ],
                                     ),
-                                  ),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.restaurant,
-                                      size: 60,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
-
-                      // ==================================================
-                      // INFORMACIÓN DE RECETA
-                      // ==================================================
-
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              receta['titulo'],
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFC95D2E),
-                              ),
                             ),
-                            const SizedBox(height: 6),
-                            if (receta['descripcion'].toString().isNotEmpty)
-                              Text(
-                                receta['descripcion'],
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 14,
-                                  height: 1.4,
-                                ),
-                              ),
-                            const SizedBox(height: 12),
-                            Row(
+                          ),
+
+                          // ==================================================
+                          // INFORMACIÓN DE RECETA
+                          // ==================================================
+
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.favorite_border,
-                                        color: Colors.grey,
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${receta['likes']}',
-                                        style: const TextStyle(
-                                          color: Colors.grey,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
+                                Text(
+                                  receta['titulo'],
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFC95D2E),
                                   ),
                                 ),
-                                const SizedBox(width: 16),
+                                const SizedBox(height: 6),
+                                if (receta['descripcion'].toString().isNotEmpty)
+                                  Text(
+                                    receta['descripcion'],
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                const SizedBox(height: 12),
                                 Row(
                                   children: [
-                                    const Icon(
-                                      Icons.chat_bubble_outline,
-                                      size: 20,
-                                      color: Colors.grey,
+                                    // ==========================================
+                                    // BOTÓN DE LIKE (INTERACTIVO)
+                                    // ==========================================
+
+                                    StatefulBuilder(
+                                      builder: (context, setStateCard) {
+                                        return InkWell(
+                                          borderRadius: BorderRadius.circular(20),
+                                          onTap: () async {
+                                            await _toggleLikeFromForum(
+                                              recetaId: receta['id'],
+                                              autorUid: receta['uid'],
+                                              currentLikes: receta['likes'],
+                                              isLiked: receta['liked'] ?? false,
+                                              onSuccess: (newLikes, newLiked) {
+                                                setStateCard(() {
+                                                  receta['likes'] = newLikes;
+                                                  receta['liked'] = newLiked;
+                                                });
+                                              },
+                                            );
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: (receta['liked'] ?? false)
+                                                  ? const Color(0xFFFFE8E0)
+                                                  : Colors.grey.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  (receta['liked'] ?? false)
+                                                      ? Icons.favorite
+                                                      : Icons.favorite_border,
+                                                  color: (receta['liked'] ?? false)
+                                                      ? const Color(0xFFE9783F)
+                                                      : Colors.grey,
+                                                  size: 20,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '${receta['likes'] ?? 0}',
+                                                  style: TextStyle(
+                                                    color: (receta['liked'] ?? false)
+                                                        ? const Color(0xFFE9783F)
+                                                        : Colors.grey,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${receta['comentarios']}',
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                      ),
+
+                                    const SizedBox(width: 16),
+
+                                    // ==========================================
+                                    // COMENTARIOS
+                                    // ==========================================
+
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.chat_bubble_outline,
+                                          size: 20,
+                                          color: Colors.grey,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${receta['comentarios'] ?? 0}',
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const Spacer(),
+
+                                    // ==========================================
+                                    // BOTÓN COMPARTIR
+                                    // ==========================================
+
+                                    IconButton(
+                                      icon: const Icon(Icons.share_outlined),
+                                      onPressed: () {
+                                        ShareUtils.shareRecipe(receta);
+                                      },
                                     ),
                                   ],
                                 ),
-                                const Spacer(),
-                                // ================================================
-                                // BOTÓN COMPARTIR (MODIFICADO)
-                                // ================================================
-                                IconButton(
-                                  icon: const Icon(Icons.share_outlined),
-                                  onPressed: () {
-                                    ShareUtils.shareRecipe(receta);
-                                  },
-                                ),
                               ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               );
             },
           );
@@ -1184,9 +1317,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        // ================================================
-        // BOTÓN COMPARTIR EN DETALLE
-        // ================================================
         actions: [
           IconButton(
             icon: const Icon(Icons.share_outlined, color: Colors.white),
