@@ -7,7 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'step_by_step_screen.dart';
-import '../utils/share_utils.dart'; // Importación para compartir
+import '../utils/share_utils.dart';
 
 class ForumScreen extends StatefulWidget {
   const ForumScreen({super.key});
@@ -112,15 +112,30 @@ class _ForumScreenState extends State<ForumScreen> {
   }
 
   // ============================================================
-  // DAR / QUITAR LIKE DESDE EL FORO
+  // ABRIR DETALLE
   // ============================================================
 
-  Future<void> _toggleLikeFromForum({
+  void _openRecipeDetail(Map<String, dynamic> receta) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeDetailScreen(
+          receta: receta,
+          onLike: () {},
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DAR / QUITAR LIKE - ACTUALIZA EL ESTADO EN EL PADRE
+  // ============================================================
+
+  Future<Map<String, dynamic>> _toggleLikeFromForum({
     required String recetaId,
     required String autorUid,
     required int currentLikes,
     required bool isLiked,
-    required Function(int, bool) onSuccess,
   }) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -132,7 +147,7 @@ class _ForumScreenState extends State<ForumScreen> {
             backgroundColor: Color(0xFFF39C12),
           ),
         );
-        return;
+        return {'success': false, 'likes': currentLikes, 'liked': isLiked};
       }
 
       final firestore = FirebaseFirestore.instance;
@@ -149,7 +164,6 @@ class _ForumScreenState extends State<ForumScreen> {
         await autorRef.update({'likesRecibidos': FieldValue.increment(-1)});
 
         final newLikes = currentLikes > 0 ? currentLikes - 1 : 0;
-        onSuccess(newLikes, false);
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -158,6 +172,8 @@ class _ForumScreenState extends State<ForumScreen> {
             duration: Duration(seconds: 1),
           ),
         );
+
+        return {'success': true, 'likes': newLikes, 'liked': false};
       } else {
         // Dar like
         await likeRef.set({
@@ -167,8 +183,6 @@ class _ForumScreenState extends State<ForumScreen> {
         await recetaRef.update({'likes': FieldValue.increment(1)});
         await autorRef.update({'likesRecibidos': FieldValue.increment(1)});
 
-        onSuccess(currentLikes + 1, true);
-
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('❤️ Like añadido'),
@@ -176,6 +190,8 @@ class _ForumScreenState extends State<ForumScreen> {
             duration: Duration(seconds: 1),
           ),
         );
+
+        return {'success': true, 'likes': currentLikes + 1, 'liked': true};
       }
     } catch (e) {
       debugPrint('ERROR AL DAR LIKE DESDE FORO: $e');
@@ -185,23 +201,8 @@ class _ForumScreenState extends State<ForumScreen> {
           backgroundColor: Colors.red,
         ),
       );
+      return {'success': false, 'likes': currentLikes, 'liked': isLiked};
     }
-  }
-
-  // ============================================================
-  // ABRIR DETALLE
-  // ============================================================
-
-  void _openRecipeDetail(Map<String, dynamic> receta) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RecipeDetailScreen(
-          receta: receta,
-          onLike: () {},
-        ),
-      ),
-    );
   }
 
   // ============================================================
@@ -300,31 +301,32 @@ class _ForumScreenState extends State<ForumScreen> {
               };
 
               return FutureBuilder<bool>(
+                key: ValueKey('liked_${receta['id']}_${receta['likes']}'),
                 future: _checkIfLiked(receta['id']),
                 builder: (context, likeSnapshot) {
                   final isLiked = likeSnapshot.data ?? false;
                   receta['liked'] = isLiked;
 
                   return ForumRecipeCard(
+                    key: ValueKey('card_${receta['id']}_${receta['likes']}_$isLiked'),
                     receta: receta,
                     onTap: () => _openRecipeDetail(receta),
                     onLike: () async {
-                      // Obtener el estado actual antes de cambiar
-                      final currentLikes = receta['likes'] ?? 0;
-                      final currentLiked = receta['liked'] ?? false;
-
-                      await _toggleLikeFromForum(
+                      // Ejecutar el like y obtener el resultado
+                      final result = await _toggleLikeFromForum(
                         recetaId: receta['id'],
                         autorUid: receta['uid'],
-                        currentLikes: currentLikes,
-                        isLiked: currentLiked,
-                        onSuccess: (newLikes, newLiked) {
-                          setState(() {
-                            receta['likes'] = newLikes;
-                            receta['liked'] = newLiked;
-                          });
-                        },
+                        currentLikes: receta['likes'] ?? 0,
+                        isLiked: receta['liked'] ?? false,
                       );
+
+                      // Actualizar la receta con el resultado
+                      if (result['success'] == true) {
+                        setState(() {
+                          receta['likes'] = result['likes'];
+                          receta['liked'] = result['liked'];
+                        });
+                      }
                     },
                     onShare: () {
                       ShareUtils.shareRecipe(receta);
@@ -1728,13 +1730,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 }
 
 // ================================================================
-// TARJETA DE RECETA DEL FORO (REUTILIZABLE)
+// TARJETA DE RECETA DEL FORO (REUTILIZABLE) - CON ESTADO LOCAL
 // ================================================================
 
-class ForumRecipeCard extends StatelessWidget {
+class ForumRecipeCard extends StatefulWidget {
   final Map<String, dynamic> receta;
   final VoidCallback onTap;
-  final VoidCallback? onLike;
+  final Future<void> Function()? onLike;
   final VoidCallback? onShare;
 
   const ForumRecipeCard({
@@ -1744,6 +1746,38 @@ class ForumRecipeCard extends StatelessWidget {
     this.onLike,
     this.onShare,
   });
+
+  @override
+  State<ForumRecipeCard> createState() => _ForumRecipeCardState();
+}
+
+class _ForumRecipeCardState extends State<ForumRecipeCard> {
+  late int _likes;
+  late bool _isLiked;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _likes = widget.receta['likes'] ?? 0;
+    _isLiked = widget.receta['liked'] ?? false;
+  }
+
+  // ============================================================
+  // Sincronizar cuando el widget se actualiza
+  // ============================================================
+
+  @override
+  void didUpdateWidget(ForumRecipeCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.receta['likes'] != widget.receta['likes'] ||
+        oldWidget.receta['liked'] != widget.receta['liked']) {
+      setState(() {
+        _likes = widget.receta['likes'] ?? 0;
+        _isLiked = widget.receta['liked'] ?? false;
+      });
+    }
+  }
 
   // ============================================================
   // OBTENER DATOS DEL USUARIO
@@ -1778,42 +1812,60 @@ class ForumRecipeCard extends StatelessWidget {
   }
 
   // ============================================================
-  // FORMATEAR FECHA
+  // MANEJAR LIKE LOCALMENTE
   // ============================================================
 
-  String _formatFecha(dynamic fecha) {
-    if (fecha == null) return 'Fecha desconocida';
+  void _handleLike() async {
+    if (_isProcessing) return;
 
-    DateTime? fechaDateTime;
-    if (fecha is Timestamp) {
-      fechaDateTime = fecha.toDate();
-    } else if (fecha is DateTime) {
-      fechaDateTime = fecha;
+    final previousLikes = _likes;
+    final previousLiked = _isLiked;
+
+    // Actualizar UI inmediatamente (optimista)
+    setState(() {
+      _isProcessing = true;
+      if (_isLiked) {
+        _likes = _likes > 0 ? _likes - 1 : 0;
+        _isLiked = false;
+      } else {
+        _likes = _likes + 1;
+        _isLiked = true;
+      }
+    });
+
+    try {
+      if (widget.onLike != null) {
+        await widget.onLike!();
+      }
+
+      setState(() {
+        _likes = widget.receta['likes'] ?? _likes;
+        _isLiked = widget.receta['liked'] ?? _isLiked;
+        _isProcessing = false;
+      });
+    } catch (e) {
+      setState(() {
+        _likes = previousLikes;
+        _isLiked = previousLiked;
+        _isProcessing = false;
+      });
+      debugPrint('Error al procesar like: $e');
     }
-
-    if (fechaDateTime == null) return 'Fecha desconocida';
-
-    final dia = fechaDateTime.day.toString().padLeft(2, '0');
-    final mes = fechaDateTime.month.toString().padLeft(2, '0');
-    final anio = fechaDateTime.year;
-    final hora = fechaDateTime.hour.toString().padLeft(2, '0');
-    final minuto = fechaDateTime.minute.toString().padLeft(2, '0');
-
-    return '$dia/$mes/$anio · $hora:$minuto';
   }
 
   @override
   Widget build(BuildContext context) {
-    final uid = receta['uid']?.toString() ?? '';
-    final fecha = _formatFecha(
-      receta['fechaPublicacionForo'] ?? receta['fechaCreacion'],
-    );
-    final titulo = receta['titulo']?.toString() ?? receta['name']?.toString() ?? 'Receta sin nombre';
-    final descripcion = receta['descripcion']?.toString() ?? receta['description']?.toString() ?? '';
-    final fotoPlatillo = receta['fotoPlatilloUrl']?.toString() ?? '';
-    final likes = receta['likes'] ?? 0;
-    final comentarios = receta['comentarios'] ?? 0;
-    final isLiked = receta['liked'] ?? false;
+    final uid = widget.receta['uid']?.toString() ?? '';
+    final titulo = widget.receta['titulo']?.toString() ?? 
+                    widget.receta['name']?.toString() ?? 
+                    'Receta sin nombre';
+    final descripcion = widget.receta['descripcion']?.toString() ?? 
+                         widget.receta['description']?.toString() ?? '';
+    final fotoPlatillo = widget.receta['fotoPlatilloUrl']?.toString() ?? '';
+    final comentarios = widget.receta['comentarios'] ?? 0;
+    final fecha = widget.receta['fecha'] ?? 'Fecha desconocida';
+
+    debugPrint('❤️ ForumRecipeCard - ${widget.receta['titulo']} - isLiked: $_isLiked - likes: $_likes');
 
     return Card(
       elevation: 4,
@@ -1823,7 +1875,7 @@ class ForumRecipeCard extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
+        onTap: widget.onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1837,7 +1889,7 @@ class ForumRecipeCard extends StatelessWidget {
                 future: _getDatosUsuario(uid),
                 builder: (context, userSnapshot) {
                   final datosUsuario = userSnapshot.data ?? {
-                    'nombre': receta['autor']?.toString() ?? 'Usuario',
+                    'nombre': widget.receta['autor']?.toString() ?? 'Usuario',
                     'fotoPerfil': '',
                   };
 
@@ -1992,52 +2044,48 @@ class ForumRecipeCard extends StatelessWidget {
                   Row(
                     children: [
                       // ==========================================
-                      // BOTÓN DE LIKE (INTERACTIVO)
+                      // BOTÓN DE LIKE (INTERACTIVO CON ESTADO LOCAL)
                       // ==========================================
 
-                      StatefulBuilder(
-                        builder: (context, setStateCard) {
-                          return InkWell(
+                      InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: _handleLike,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _isLiked
+                                ? const Color(0xFFFFE8E0)
+                                : Colors.grey.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(20),
-                            onTap: onLike,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: _isLiked
+                                    ? const Color(0xFFE9783F)
+                                    : Colors.grey,
+                                size: 20,
                               ),
-                              decoration: BoxDecoration(
-                                color: isLiked
-                                    ? const Color(0xFFFFE8E0)
-                                    : Colors.grey.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_likes',
+                                style: TextStyle(
+                                  color: _isLiked
+                                      ? const Color(0xFFE9783F)
+                                      : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isLiked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: isLiked
-                                        ? const Color(0xFFE9783F)
-                                        : Colors.grey,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '$likes',
-                                    style: TextStyle(
-                                      color: isLiked
-                                          ? const Color(0xFFE9783F)
-                                          : Colors.grey,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+                            ],
+                          ),
+                        ),
                       ),
 
                       const SizedBox(width: 16),
@@ -2071,8 +2119,8 @@ class ForumRecipeCard extends StatelessWidget {
 
                       IconButton(
                         icon: const Icon(Icons.share_outlined),
-                        onPressed: onShare ?? () {
-                          ShareUtils.shareRecipe(receta);
+                        onPressed: widget.onShare ?? () {
+                          ShareUtils.shareRecipe(widget.receta);
                         },
                       ),
                     ],
