@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '/services/deepseek_service.dart';
+import '/prompts/security_prompt.dart';
 import '/prompts/amelia_prompt.dart';
 import '/prompts/cooking_prompt.dart';
 
@@ -89,6 +90,10 @@ class _StepByStepScreenState extends State<StepByStepScreen> {
       final messages = <Map<String, String>>[
         {
           'role': 'system',
+          'content': securityPrompt,
+        },
+        {
+          'role': 'system',
           'content': ameliaPrompt,
         },
         {
@@ -109,6 +114,9 @@ ${steps.isNotEmpty && currentStep < steps.length ? steps[currentStep] : 'No hay 
 
 Utiliza esta receta como fuente principal de verdad.
 No inventes pasos, ingredientes, tiempos ni cantidades.
+
+REGLA DE MODO COCINA:
+En este modo de acompañamiento paso a paso, concéntrate exclusivamente en guiar la preparación del platillo, resolver dudas técnicas de cocina, tiempos, sustitución de ingredientes y seguridad en la cocina. Declina amablemente cualquier consulta o conversación que no esté relacionada con esta receta o la cocina.
 ''',
         },
       ];
@@ -520,10 +528,12 @@ final sanitized = response.replaceAll('*', '');
                     child: TextField(
                       controller: _doubtController,
                       enabled: !_isLoading,
+                      maxLength: 400,
                       decoration: const InputDecoration(
                         hintText:
                             '¿Tienes alguna duda? Pregúntame',
                         border: InputBorder.none,
+                        counterText: '',
                         contentPadding:
                             EdgeInsets.symmetric(
                           horizontal: 20,

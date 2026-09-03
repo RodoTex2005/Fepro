@@ -12,6 +12,7 @@ import 'publish_recipe_screen.dart';
 import '/services/deepseek_service.dart';
 import '/services/gemini_service.dart';
 
+import '/prompts/security_prompt.dart';
 import '/prompts/amelia_prompt.dart';
 import '/prompts/engine_prompt.dart';
 import '/prompts/recipe_prompt.dart';
@@ -136,6 +137,10 @@ class _ChatScreenState extends State<ChatScreen> {
       // ==========================================================
 
       final List<Map<String, String>> promptMessages = [
+        {
+          'role': 'system',
+          'content': securityPrompt,
+        },
         {
           'role': 'system',
           'content': ameliaPrompt,
@@ -1183,6 +1188,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       enabled:
                           !_isLoading,
 
+                      maxLength: 600,
+
                       decoration:
                           const InputDecoration(
                         hintText:
@@ -1190,6 +1197,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
                         border:
                             InputBorder.none,
+
+                        counterText: '',
 
                         contentPadding:
                             EdgeInsets.symmetric(
